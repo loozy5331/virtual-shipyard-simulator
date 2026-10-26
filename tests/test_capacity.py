@@ -44,3 +44,21 @@ def test_mix_adds_up_to_deliveries():
 def test_utilization_in_range(resource):
     utilization = _demand()[resource] / (365 * _slots(resource))
     assert 0.5 <= utilization <= 0.85, f"{resource}: {utilization:.0%}"
+
+
+def _annual_block_mh():
+    total = 0.0
+    for ship_type, n in MIX.items():
+        ship = SHIPS[ship_type]
+        mh_per_t = sum(w["mh_per_t"] for w in ship["block_work"].values())
+        total += n * ship["steel_weight_t"] * mh_per_t
+    return total
+
+
+def test_block_work_fits_workforce():
+    """블록 공정(가공·조립, 도장·선행의장 흡수)은 인력이 낼 수 있는 연간 공수의 20~50%.
+    나머지는 탑재·안벽 의장·시운전과 설계·관리 등이다(가정)."""
+    w = YARD["workforce"]
+    capacity = (w["direct"] + w["subcontract"]) * w["annual_hours"]
+    share = _annual_block_mh() / capacity
+    assert 0.2 <= share <= 0.5, f"{share:.0%}"

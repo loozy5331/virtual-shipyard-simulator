@@ -40,6 +40,7 @@ class Hull:
     weights_t: list[float]
     block_durations: dict[str, list[int]]
     block_release: list[int]
+    block_mh: dict[str, list[float]]
     durations: dict[str, int]
     steel_cut: bool = field(default=False)
 
@@ -116,6 +117,10 @@ class Shipyard:
             buffer=days(order["delivery_buffer_days"]),
             block_ids=[f"{order['hull_no']}-B{i:03d}" for i in range(1, n + 1)],
             weights_t=weights,
+            block_mh={
+                p.id: [round(w * ship["block_work"][p.id]["mh_per_t"], 1) for w in weights]
+                for p in self.block_chain
+            },
             block_release=[days(ship["release_window_days"]) * i // n for i in range(n)],
             block_durations=block_durations,
             durations={k: days(v) for k, v in ship["durations_days"].items()},
@@ -222,7 +227,7 @@ class Shipyard:
 
         yield self.env.timeout(duration)
 
-        done = {"work_hours": duration / 60} if block is not None else {}
+        done = {"work_hours": hull.block_mh[p.id][block]} if block is not None else {}
         self.emit(f"{unit}.process_completed", key, hull, done, block_id, p.id, resource_id)
         if "end" in p.milestones:
             self.milestone(hull, p.milestones["end"])

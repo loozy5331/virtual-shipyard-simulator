@@ -7,7 +7,7 @@
     "work_hours": {
       "type": "number",
       "minimum": 0,
-      "description": "실제 작업 시간(h)"
+      "description": "투입 공수(MH, 맨아워). 작업 기간이 아니라 사람 × 시간"
     }
   },
   "required": [

@@ -186,3 +186,19 @@ def test_blocks_released_over_window(ship_type):
     ]
     spread = (max(starts) - min(starts)).days
     assert spread == pytest.approx(ship["release_window_days"], abs=2)
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_work_hours_are_man_hours_by_weight(ship_type):
+    ship, events = _run(ship_type)
+    weight = {
+        e["block_id"]: e["payload"]["weight_t"]
+        for e in events
+        if e["event_type"] == "block.process_started"
+    }
+    for e in events:
+        if e["event_type"] == "block.process_completed":
+            mh_per_t = ship["block_work"][e["process"]]["mh_per_t"]
+            assert e["payload"]["work_hours"] == pytest.approx(
+                weight[e["block_id"]] * mh_per_t, abs=0.1
+            )
