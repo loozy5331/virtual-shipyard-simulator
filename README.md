@@ -44,6 +44,7 @@ uv run python -m emitter.report                          # 노이즈 리포트(-
 
 - `sim`: `--forever`면 멈출 때까지, `--out FILE`이면 파일 하나. 시작부터 약 3년은 인도가 없는 워밍업이다(ADR-004)
 - `emitter`: `--seed`는 노이즈 시드(시뮬레이션 시드와 따로). 같은 정답 로그로 노이즈만 바꿔 여러 번 만들 수 있다(ADR-005)
+- 경계(ADR-007): `out/truth`는 원천의 기록이라 시뮬레이터가 보존한다. `out/emitted`는 플랫폼의 착륙 구역이다. 시뮬레이터는 쓰기만 하고, 보존·정리·수집 위치는 플랫폼이 관리한다
 - `uv run python -m sim.periods --seeds 20`: 구간 평균 ≈ 마일스톤 기간표인지
 
 ### 누락 찾기와 재발행(ADR-006)
@@ -111,6 +112,7 @@ uv run pytest            # 테스트
 - [ADR-004 수주와 납기, 끝없는 실행](docs/adr/004-orders-and-endless-run.md)
 - [ADR-005 방출기와 노이즈](docs/adr/005-emitter-noise.md)
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
+- [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
 
 ## 만든 것
 
