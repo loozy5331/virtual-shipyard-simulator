@@ -1,7 +1,7 @@
 import pytest
 
 from sim import params
-from sim.params import ParamsError, check_variability, unwrap
+from sim.params import ParamsError, check_noise, check_variability, unwrap
 
 
 def test_params_load():
@@ -68,3 +68,28 @@ def test_bad_variability_is_rejected(changes):
     v, processes = _variability(**changes)
     with pytest.raises(ParamsError):
         check_variability(v, processes)
+
+
+def test_noise_params_load():
+    noise = params.load()["variability"]["noise"]
+    assert 0 < noise["drop_rate"] < 0.1 and 0 < noise["duplicate_rate"] < 0.1
+    check_noise(noise)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"drop_rate": 1.0},
+        {"duplicate_rate": -0.1},
+        {"retry_median_seconds": 0},
+        {"delay": {"late_rate": 1.2}},
+        {"delay": {"max_hours": 0}},
+        {"delay": {"late_median_minutes": 10_000, "max_hours": 72}},
+    ],
+)
+def test_bad_noise_is_rejected(change):
+    noise = params.load()["variability"]["noise"]
+    noise = {**noise, **{k: v for k, v in change.items() if k != "delay"}}
+    noise["delay"] = {**noise["delay"], **change.get("delay", {})}
+    with pytest.raises(ParamsError):
+        check_noise(noise)
