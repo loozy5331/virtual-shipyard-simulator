@@ -5,6 +5,8 @@
 # 선종별 블록 수를 그대로 적은 공개 자료는 아직 찾지 못했다. Mendeley 블록 데이터로 바꿀 대상이다.
 #
 # 블록 작업 시간 = base_days + 무게(t) × days_per_100t ÷ 100 (도메인 모델: 블록 작업 시간은 무게에 비례)
+# 블록 착수 계획: 배 한 척의 블록은 release_window_days에 걸쳐 고르게 가공에 들어간다.
+# 실제 조선소도 탑재 순서에 맞춰 블록을 나눠 착수한다. 가공 공장이 여럿이어도 한 척이 몰아 가공하지 않는다.
 # 배 공정 시간은 마일스톤 기간표(착공 → 진수, 진수 → 인도)를 따른다(달력 일, ADR-002).
 ship_types:
   lng_carrier:
@@ -14,8 +16,9 @@ ship_types:
     beam_m: {value: 46.4, grade: 출처}
     steel_weight_t: {value: 26000, grade: 가정, note: 선체 강재. 크기 대비 VLCC보다 가볍다}
     block_count: {value: 170, grade: 가정, note: 평균 약 153t. 화물창 주변 구조가 복잡해 블록이 작고 많다}
+    release_window_days: {value: 90, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
     block_work:
-      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.33, grade: 가정, note: 가공 공장 하루 약 300t. 곡면·복잡 구조가 많다}}
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}}
       block_assembly: {base_days: {value: 12, grade: 가정}, days_per_100t: {value: 8, grade: 가정, note: 보냉재 받침 등 선행의장이 많아 느리다}}
     durations_days:
       erection: {value: 120, grade: 가정, note: 기간표 착공 → 진수 4개월}
@@ -28,8 +31,9 @@ ship_types:
     beam_m: {value: 60, grade: 출처}
     steel_weight_t: {value: 38000, grade: 가정, note: 강재량이 가장 많은 선종}
     block_count: {value: 190, grade: 가정, note: 평균 200t. 평평한 이중선체 구조라 블록이 크다}
+    release_window_days: {value: 95, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
     block_work:
-      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.25, grade: 가정, note: 하루 약 400t. 평판이 많다. 기간표 강재절단 → 착공 4개월에 맞춤}}
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}}
       block_assembly: {base_days: {value: 8, grade: 가정}, days_per_100t: {value: 6, grade: 가정}}
     durations_days:
       erection: {value: 90, grade: 가정, note: 기간표 착공 → 진수 3개월}
@@ -42,8 +46,9 @@ ship_types:
     beam_m: {value: 61.5, grade: 출처}
     steel_weight_t: {value: 52000, grade: 가정, note: 길이가 가장 길어 강재 중량도 가장 크다}
     block_count: {value: 260, grade: 가정, note: 평균 200t}
+    release_window_days: {value: 95, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
     block_work:
-      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.18, grade: 가정, note: 하루 약 550t. 후판이 두꺼워 같은 절단 길이에 톤수가 많다. 기간표 4개월에 맞춤}}
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}}
       block_assembly: {base_days: {value: 8, grade: 가정}, days_per_100t: {value: 6, grade: 가정}}
     durations_days:
       erection: {value: 120, grade: 가정, note: 기간표 착공 → 진수 4개월}

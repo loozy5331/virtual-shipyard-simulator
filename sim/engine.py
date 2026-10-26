@@ -39,6 +39,7 @@ class Hull:
     block_ids: list[str]
     weights_t: list[float]
     block_durations: dict[str, list[int]]
+    block_release: list[int]
     durations: dict[str, int]
     steel_cut: bool = field(default=False)
 
@@ -115,6 +116,7 @@ class Shipyard:
             buffer=days(order["delivery_buffer_days"]),
             block_ids=[f"{order['hull_no']}-B{i:03d}" for i in range(1, n + 1)],
             weights_t=weights,
+            block_release=[days(ship["release_window_days"]) * i // n for i in range(n)],
             block_durations=block_durations,
             durations={k: days(v) for k, v in ship["durations_days"].items()},
         )
@@ -162,12 +164,11 @@ class Shipyard:
     # 프로세스
 
     def planned_delivery(self, hull: Hull) -> int:
-        """계약 납기 = 계약 + 착수 대기 + 공정 시간 + 버퍼. 공정 시간은 첫 블록 공정을 그 작업장
-        칸 수로 나눠 차례로 받고, 나머지 블록 공정은 가장 긴 블록만큼 걸린다고 본다.
+        """계약 납기 = 계약 + 착수 대기 + 공정 시간 + 버퍼. 공정 시간은 마지막 블록이 착수한 뒤
+        블록 공정마다 가장 긴 블록만큼, 그다음 배 공정을 더한다(작업장 대기는 없다고 본다).
         4단계에서 수주잔량을 반영한 계산으로 바꾼다."""
-        first, *rest = self.block_chain
-        work = math.ceil(sum(hull.block_durations[first.id]) / self.pools[first.resource].capacity)
-        work += sum(max(hull.block_durations[p.id]) for p in rest)
+        work = hull.block_release[-1]
+        work += sum(max(hull.block_durations[p.id]) for p in self.block_chain)
         work += sum(hull.durations[p.id] for p in self.hull_chain)
         return hull.contracted + hull.start_lag + work + hull.buffer
 
@@ -193,6 +194,7 @@ class Shipyard:
             yield from self.work(hull, p)
 
     def block_life(self, hull: Hull, i: int) -> Generator:
+        yield self.env.timeout(hull.block_release[i])
         for p in self.block_chain:
             yield from self.work(hull, p, i)
 
