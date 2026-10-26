@@ -7,14 +7,16 @@ import math
 import random
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
+from statistics import NormalDist
 from typing import Any
 
 import simpy
 
 from sim.clock import Clock, days
-from sim.dock import HALF, DockYard
+from sim.dock import FULL, HALF, DockYard
 from sim.ids import uuid7
 from sim.orders import expand
+from sim.planner import DockPlan
 
 Event = dict[str, Any]
 Sink = Callable[[Event], None]
@@ -36,7 +38,7 @@ class Hull:
     ship_type: str
     owner: str
     contracted: int
-    start_lag: int
+    min_start_lag: int
     buffer: int
     block_ids: list[str]
     weights_t: list[float]
@@ -44,6 +46,9 @@ class Hull:
     block_release: list[int]
     block_mh: dict[str, list[float]]
     durations: dict[str, int]
+    start_lag: int = 0  # 계약할 때 도크 계획으로 정한다
+    dock: int = 0  # 계약할 때 예약한 도크 순번
+    dock_position: str = FULL  # 계약할 때 계획한 도크 자리
     steel_cut: bool = field(default=False)
 
 
@@ -62,6 +67,14 @@ def lognormal_factor(rng: random.Random, cv: float) -> float:
         return 1.0
     sigma = math.sqrt(math.log(1 + cv * cv))
     return rng.lognormvariate(-sigma * sigma / 2, sigma)
+
+
+def lognormal_quantile(cv: float, q: float) -> float:
+    """lognormal_factor 분포의 q 분위수. 계획을 평균보다 넉넉하게 잡을 때 쓴다."""
+    if cv == 0:
+        return 1.0
+    sigma = math.sqrt(math.log(1 + cv * cv))
+    return math.exp(-sigma * sigma / 2 + sigma * NormalDist().inv_cdf(q))
 
 
 def _chain(processes: list[dict[str, Any]], unit: str, first_after: list[str]) -> list[Process]:
@@ -84,6 +97,8 @@ class Shipyard:
         self.seed = seed
         self.rng_ids = random.Random(f"ids-{seed}")
         self.cv = {pid: d["cv"] for pid, d in params["variability"]["duration"].items()}
+        quantile = params["orders"]["plan_quantile"]
+        self.plan_factor = {pid: lognormal_quantile(cv, quantile) for pid, cv in self.cv.items()}
         self.sink = sink
         self.seq: dict[str, int] = {}
 
@@ -93,7 +108,7 @@ class Shipyard:
 
         # 자원 하나 = 작업장 번호를 담은 Store. 먼저 기다린 쪽이 먼저 받는다.
         # 작업장 하나에 칸(slots)이 여럿이면 같은 번호를 칸 수만큼 넣는다. 작업장을 번갈아 채운다.
-        # 도크는 따로(ADR-003): 전체 자리 + 반쪽 자리, 진수 때 물을 채운다.
+        # 도크는 따로(ADR-003): 전체 자리 + 반쪽 자리, 진수 때 물을 채운다. 납기는 도크 계획으로.
         self.pools: dict[str, simpy.Store] = {}
         self.docks: dict[str, DockYard] = {}
         for name, r in yard["resources"].items():
@@ -101,10 +116,14 @@ class Shipyard:
             if "half_share" in r:
                 self.docks[name] = DockYard(self.env, ids, days(r["flood_days"]))
                 self.half_share = r["half_share"]
+                self.dock_plan = DockPlan(r["count"], r["half_share"], days(r["flood_days"]))
                 continue
             store = simpy.Store(self.env, capacity=r["count"] * r["slots"])
             store.items.extend(ids * r["slots"])
             self.pools[name] = store
+
+        if self.hull_chain[0].resource not in self.docks:
+            raise ValueError("배 공정의 첫째는 도크 공정이어야 한다(도크 계획, ADR-004)")
 
         self.ship_types = params["ship_types"]["ship_types"]
         for order in expand(params["orders"], self.clock):
@@ -131,7 +150,7 @@ class Shipyard:
             ship_type=order["ship_type"],
             owner=order["owner"],
             contracted=order["contracted"],
-            start_lag=order["start_lag"],
+            min_start_lag=order["min_start_lag"],
             buffer=order["buffer"],
             block_ids=[f"{order['hull_no']}-B{i:03d}" for i in range(1, n + 1)],
             weights_t=weights,
@@ -192,15 +211,21 @@ class Shipyard:
 
     # 프로세스
 
-    def planned_delivery(self, hull: Hull) -> int:
-        """계약 납기 = 계약 + 착수 대기 + 공정 시간 + 버퍼. 공정 시간은 마지막 블록이 착수한 뒤
-        블록 공정마다 가장 긴 블록만큼, 그다음 배 공정을 더한다. 시간은 평균, 작업장 대기는 없다고
-        본다. 4단계에서 수주잔량을 반영한 계산으로 바꾼다."""
-        work = hull.block_release[-1]
-        work += sum(max(hull.block_durations[p.id]) for p in self.block_chain)
-        work += sum(hull.durations[p.id] for p in self.hull_chain)
-        work += sum(d.flood_minutes for d in self.docks.values())
-        return hull.contracted + hull.start_lag + work + hull.buffer
+    def plan(self, hull: Hull) -> int:
+        """계약할 때 도크 자리를 예약해 착수 대기를 정하고 계약 납기(분)를 낸다(ADR-004).
+        블록 기간 = 마지막 블록 착수 + 블록 공정마다 가장 긴 블록. 시간은 공정마다 평균이 아니라
+        plan_quantile 분위수로 넉넉하게 잡는다(착공은 가장 늦은 블록에 맞춰지므로)."""
+        q = self.plan_factor
+        blocks = hull.block_release[-1]
+        blocks += sum(round(max(hull.block_durations[p.id]) * q[p.id]) for p in self.block_chain)
+        earliest = hull.contracted + hull.min_start_lag + blocks
+        erection = self.hull_chain[0].id
+        booking = self.dock_plan.book(earliest, round(hull.durations[erection] * q[erection]))
+        hull.start_lag = booking.keel - blocks - hull.contracted
+        hull.dock = booking.dock
+        hull.dock_position = HALF if booking.half else FULL
+        after_dock = sum(round(hull.durations[p.id] * q[p.id]) for p in self.hull_chain[1:])
+        return booking.launch + after_dock + hull.buffer
 
     def hull_life(self, hull: Hull) -> Generator:
         yield self.env.timeout(hull.contracted)
@@ -211,7 +236,7 @@ class Shipyard:
             {
                 "ship_type": hull.ship_type,
                 "owner": hull.owner,
-                "contract_delivery_date": self.clock.date(self.planned_delivery(hull)),
+                "contract_delivery_date": self.clock.date(self.plan(hull)),
                 "block_count": len(hull.block_ids),
             },
         )
@@ -266,9 +291,10 @@ class Shipyard:
         yield pool.put(resource_id)
 
     def erect(self, hull: Hull, p: Process, docks: DockYard) -> Generator:
-        """도크 공정(ADR-003). 반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
+        """도크 공정(ADR-003). 계약 때 예약한 도크에 들어간다(ADR-004).
+        반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
         완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다."""
-        dock, position = yield docks.enter(hull.hull_no)
+        dock, position = yield docks.enter(hull.hull_no, hull.dock, hull.dock_position)
         mean = hull.durations[p.id]
         duration, _ = self.draw(hull.hull_no, p.id, mean)
         started = {
