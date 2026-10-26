@@ -94,5 +94,7 @@ def load(params_dir: Path = PARAMS_DIR) -> dict[str, Any]:
         raise ParamsError(f"{version}.yaml: params_version이 {version}이 아니다")
     check_variability(variability, params["processes"]["processes"])
     check_noise(variability["noise"])
+    if not variability["reconciliation"]["lookback_days"] >= 1:
+        raise ParamsError("reconciliation.lookback_days: 1 이상")
     params["variability"] = variability
     return params

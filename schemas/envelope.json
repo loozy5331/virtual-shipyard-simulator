@@ -18,7 +18,8 @@
         "hull.process_started",
         "hull.process_completed",
         "hull.milestone_reached",
-        "equipment.status_changed"
+        "equipment.status_changed",
+        "system.reconciled"
       ],
       "description": "대상.동사_과거형"
     },
@@ -324,6 +325,34 @@
             "type": "string"
           },
           "hull_no": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "system.reconciled"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "payloads/system.reconciled.json"
+          },
+          "hull_no": {
+            "type": "null"
+          },
+          "block_id": {
+            "type": "null"
+          },
+          "process": {
+            "type": "null"
+          },
+          "resource_id": {
             "type": "null"
           }
         }
