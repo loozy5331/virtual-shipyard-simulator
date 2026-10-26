@@ -1,7 +1,8 @@
 # 고정 수주 목록. 계약 한 건에 같은 선종 1~4척(도메인 모델: 한 번에 1~4척).
 # 호선 번호는 계약 순서대로, 계약한 해마다 H-<연도 두 자리><01부터>(예: H-2601).
 # 2단계: 첫해 24척의 고정 수주. 4단계에서 포아송 수주로 바꾼다.
-start_lag_days: {value: 760, grade: 가정, note: 계약 → 강재절단. 일감 3년 이상, 2025년 계약분 2028~2029년 인도(docs/sources.md). 4단계에서 수주잔량으로 계산}
+start_lag_days: {value: 760, grade: 가정, note: 계약 → 강재절단의 최소. 일감 3년 이상, 2025년 계약분 2028~2029년 인도(docs/sources.md). 도크 계획이 붐비면 더 늦춘다(ADR-004)}
+plan_quantile: {value: 0.8, grade: 가정, note: 도크 계획은 공정 시간을 이 분위수로 잡는다(평균보다 넉넉하게, ADR-004)}
 delivery_buffer_days: {value: 30, grade: 가정, note: 계획 끝 → 계약 납기}
 contracts:
   grade: 가정

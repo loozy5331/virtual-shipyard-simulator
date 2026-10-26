@@ -12,7 +12,7 @@ def test_contract_expands_to_hulls():
     hulls = expand(_orders({"day": 0, "ship_type": "vlcc", "owner": "가", "count": 3}), CLOCK)
     assert [h["hull_no"] for h in hulls] == ["H-2601", "H-2602", "H-2603"]
     assert {h["ship_type"] for h in hulls} == {"vlcc"}
-    assert hulls[0]["start_lag"] == days(760)
+    assert hulls[0]["min_start_lag"] == days(760)
 
 
 def test_hull_numbers_restart_each_contract_year():

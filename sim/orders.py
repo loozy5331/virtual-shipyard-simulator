@@ -22,7 +22,7 @@ def expand(orders: dict[str, Any], clock: Clock) -> list[dict[str, Any]]:
                     "ship_type": c["ship_type"],
                     "owner": c["owner"],
                     "contracted": contracted,
-                    "start_lag": days(orders["start_lag_days"]),
+                    "min_start_lag": days(orders["start_lag_days"]),
                     "buffer": days(orders["delivery_buffer_days"]),
                 }
             )

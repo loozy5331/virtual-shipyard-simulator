@@ -96,11 +96,13 @@ def test_dock_wait_happens(events):
 
 
 def test_dock_is_first_come_first_served(events):
+    """배는 계약 때 예약한 도크에 들어가고(ADR-004), 도크마다 먼저 온 배가 먼저 들어간다."""
     ready = _dock_ready(events)
     erection = _hulls(events, "hull.process_started", process="erection")
-    by_ready = sorted(ready, key=lambda h: (ready[h], h))
-    starts = [_t(erection[h]) for h in by_ready]
-    assert starts == sorted(starts)
+    for dock in {e["resource_id"] for e in erection.values()}:
+        hulls = [h for h in ready if erection[h]["resource_id"] == dock]
+        starts = [_t(erection[h]) for h in sorted(hulls, key=lambda h: (ready[h], h))]
+        assert starts == sorted(starts), dock
 
 
 def test_semi_tandem_docks_use_both_positions(events):
@@ -129,3 +131,27 @@ def test_half_ship_moves_up_when_ship_ahead_launches(events):
             if s["resource_id"] == e["resource_id"] and _t(s) <= _t(e) and s is not e
         ][-1]
         assert _t(launched[ahead["hull_no"]]) > _t(e)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_most_ships_meet_contract_date(seed):
+    """납기는 도크 계획으로 잡는다(ADR-004). 흩어짐과 계획에 없는 대기로 몇 척은 늦는다."""
+    out = []
+    simulate(P, seed=seed, sink=out.append)
+    promised = {
+        e["hull_no"]: e["payload"]["contract_delivery_date"]
+        for e in out
+        if e["event_type"] == "order.contracted"
+    }
+    delivered = _hulls(out, "hull.milestone_reached", milestone="delivery")
+    late = [h for h, e in delivered.items() if e["occurred_at"][:10] > promised[h]]
+    assert len(late) <= len(promised) // 4
+
+
+def test_ships_enter_planned_dock(events):
+    """같은 도크의 배는 계약 순서대로 들어간다(도크 계획을 따른다)."""
+    erection = _hulls(events, "hull.process_started", process="erection")
+    order = [e["hull_no"] for e in events if e["event_type"] == "order.contracted"]
+    for dock in {e["resource_id"] for e in erection.values()}:
+        hulls = [h for h in order if erection[h]["resource_id"] == dock]
+        assert [_t(erection[h]) for h in hulls] == sorted(_t(erection[h]) for h in hulls)
