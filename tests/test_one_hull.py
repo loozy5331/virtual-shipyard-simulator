@@ -78,7 +78,7 @@ def test_every_block_passes_block_processes(events):
     for e in events:
         if e["event_type"] == "block.process_completed":
             done.setdefault(e["block_id"], []).append(e["process"])
-    assert len(done) == 8
+    assert len(done) == params.load()["ship_types"]["ship_types"]["lng_carrier"]["block_count"]
     assert all(p == ["steel_fabrication", "block_assembly"] for p in done.values())
 
 

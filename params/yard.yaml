@@ -2,9 +2,11 @@
 name: 서해조선
 params_version: v0
 epoch: "2026-11-02T08:00:00+09:00"   # 시뮬레이션 시계 0분(ADR-002)
+# count = 작업장 수(resource_id가 붙는 단위), slots = 작업장 하나에서 동시에 하는 작업 수(정반 등).
+# 가공 공장은 한 줄로 흘려 한 번에 블록 하나, 조립장은 정반이 여럿이라 블록 여럿을 함께 짓는다.
 resources:
-  fabrication: {prefix: FAB, count: {value: 1, grade: 가정}}
-  assembly: {prefix: ASM, count: {value: 3, grade: 가정}}
-  dock: {prefix: DOCK, count: {value: 1, grade: 가정}}
-  berth: {prefix: BERTH, count: {value: 4, grade: 가정}}
-  trial: {prefix: TRIAL, count: {value: 1, grade: 가정}}
+  fabrication: {prefix: FAB, count: {value: 1, grade: 가정}, slots: {value: 1, grade: 가정}}
+  assembly: {prefix: ASM, count: {value: 3, grade: 가정}, slots: {value: 24, grade: 가정, note: 조립장 하나의 정반 수}}
+  dock: {prefix: DOCK, count: {value: 1, grade: 가정}, slots: {value: 1, grade: 가정}}
+  berth: {prefix: BERTH, count: {value: 4, grade: 가정}, slots: {value: 1, grade: 가정}}
+  trial: {prefix: TRIAL, count: {value: 1, grade: 가정}, slots: {value: 1, grade: 가정}}
