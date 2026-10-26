@@ -1,0 +1,37 @@
+# 간이 필수 공정 5개(도메인 모델 문서 "간이 필수 공정 (MVP)").
+# 제품의 형태가 바뀌는 지점에만 공정을 둔다. 흡수한 공정(absorbs)의 시간은 호스트 공정 시간에 더한다.
+# 블록 공정(unit: block)은 블록마다 따로 흐르고, 배 공정(unit: hull)은 블록이 모두 모인 뒤 배 한 척 단위로 흐른다.
+processes:
+  - id: steel_fabrication
+    name: 강재 가공
+    unit: block
+    resource: fabrication
+    after: []
+    absorbs: [절단, 가공]
+    milestones: {first_start: steel_cutting}
+  - id: block_assembly
+    name: 블록 조립
+    unit: block
+    resource: assembly
+    after: [steel_fabrication]
+    absorbs: [소조립, 중조립, 도장, 선행의장]
+  - id: erection
+    name: 탑재
+    unit: hull
+    resource: dock
+    after: [block_assembly]
+    absorbs: [PE, 탑재]
+    milestones: {start: keel_laying, end: launching}
+  - id: quay_outfitting
+    name: 안벽 의장
+    unit: hull
+    resource: berth
+    after: [erection]
+    absorbs: [안벽의장]
+  - id: sea_trial
+    name: 시운전
+    unit: hull
+    resource: trial
+    after: [quay_outfitting]
+    absorbs: [시운전]
+    milestones: {end: delivery}
