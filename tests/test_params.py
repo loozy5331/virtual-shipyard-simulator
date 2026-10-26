@@ -1,7 +1,7 @@
 import pytest
 
 from sim import params
-from sim.params import ParamsError, unwrap
+from sim.params import ParamsError, check_variability, unwrap
 
 
 def test_params_load():
@@ -34,3 +34,37 @@ def test_graded_number_unwraps():
 def test_ungraded_number_is_rejected(node):
     with pytest.raises(ParamsError):
         unwrap(node)
+
+
+def test_variability_loads_by_params_version():
+    p = params.load()
+    assert p["variability"]["params_version"] == p["yard"]["params_version"]
+    duration = p["variability"]["duration"]
+    assert set(duration) == {x["id"] for x in p["processes"]["processes"]}
+    assert all(d["dist"] == "lognormal" and d["cv"] >= 0 for d in duration.values())
+
+
+def _variability(**changes):
+    p = params.load()
+    v = p["variability"]
+    v["duration"] = {k: dict(d) for k, d in v["duration"].items()}
+    for pid, change in changes.items():
+        if change is None:
+            del v["duration"][pid]
+        else:
+            v["duration"][pid].update(change)
+    return v, p["processes"]["processes"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"sea_trial": None},
+        {"erection": {"dist": "normal"}},
+        {"erection": {"cv": -0.1}},
+    ],
+)
+def test_bad_variability_is_rejected(changes):
+    v, processes = _variability(**changes)
+    with pytest.raises(ParamsError):
+        check_variability(v, processes)
