@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/block.process_completed.json",
+  "title": "block.process_completed payload",
+  "type": "object",
+  "properties": {
+    "work_hours": {
+      "type": "number",
+      "minimum": 0,
+      "description": "실제 작업 시간(h)"
+    }
+  },
+  "required": [
+    "work_hours"
+  ],
+  "additionalProperties": false
+}

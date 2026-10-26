@@ -1,0 +1,19 @@
+{
+  "event_id": "0192f3a0-0007-7abc-8def-0123456789ab",
+  "event_type": "equipment.status_changed",
+  "schema_version": 1,
+  "source": "eam",
+  "occurred_at": "2027-02-10T11:20:00+09:00",
+  "emitted_at": "2027-02-10T11:20:00+09:00",
+  "run_id": "v0-42",
+  "entity_key": "ASM-2",
+  "seq": 1,
+  "hull_no": null,
+  "block_id": null,
+  "process": null,
+  "resource_id": "ASM-2",
+  "payload": {
+    "status": "down",
+    "reason": "hydraulic_failure"
+  }
+}
