@@ -126,6 +126,7 @@ uv run pytest            # 테스트
 - [ADR-005 방출기와 노이즈](docs/adr/005-emitter-noise.md)
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
 - [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
+- [ADR-008 아웃박스(CDC) 모양 출력](docs/adr/008-outbox-output.md) (제안)
 
 ## 만든 것
 
