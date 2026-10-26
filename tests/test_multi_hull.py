@@ -7,8 +7,9 @@ import pytest
 from sim import params
 from sim.engine import simulate
 from sim.schema import validator
+from tests.helpers import fixed_orders
 
-P = params.load()
+P = fixed_orders(params.load())
 
 
 @pytest.fixture(scope="module")

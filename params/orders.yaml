@@ -1,6 +1,6 @@
-# 고정 수주 목록. 계약 한 건에 같은 선종 1~4척(도메인 모델: 한 번에 1~4척).
+# 수주. 계약 한 건에 같은 선종 1~4척(도메인 모델: 한 번에 1~4척).
 # 호선 번호는 계약 순서대로, 계약한 해마다 H-<연도 두 자리><01부터>(예: H-2601).
-# 2단계: 첫해 24척의 고정 수주. 4단계에서 포아송 수주로 바꾼다.
+# 첫해는 고정 목록(contracts), 그다음 날부터 포아송 도착(arrivals)이 끝없이 들어온다(ADR-004).
 start_lag_days: {value: 760, grade: 가정, note: 계약 → 강재절단의 최소. 일감 3년 이상, 2025년 계약분 2028~2029년 인도(docs/sources.md). 도크 계획이 붐비면 더 늦춘다(ADR-004)}
 plan_quantile: {value: 0.8, grade: 가정, note: 도크 계획은 공정 시간을 이 분위수로 잡는다(평균보다 넉넉하게, ADR-004)}
 delivery_buffer_days: {value: 30, grade: 가정, note: 계획 끝 → 계약 납기}
@@ -20,3 +20,13 @@ contracts:
     - {day: 220, ship_type: container, owner: 바다로해운, count: 2}
     - {day: 270, ship_type: lng_carrier, owner: 청해에너지, count: 2}
     - {day: 330, ship_type: vlcc, owner: 북항상선, count: 2}
+
+# 고정 목록 다음의 포아송 수주. contracts_per_year 0이면 고정 목록만(테스트용).
+# 선종은 yard.yaml annual_plan.mix 비율로 뽑는다.
+arrivals:
+  contracts_per_year: {value: 9.6, grade: 가정, note: 연 24척(연간 계획) ÷ 계약당 평균 2.5척}
+  count_weights: {value: [0.2, 0.4, 0.1, 0.3], grade: 가정, note: 1~4척 계약의 비율, 평균 2.5척. 2·4척(옵션 포함) 계약이 흔하다}
+  owners:
+    lng_carrier: [남해해운, 서강가스, 청해에너지, 동해LNG]
+    vlcc: [동방유조, 북항상선, 서해탱커]
+    container: [한빛컨테이너, 바다로해운, 대양라인]

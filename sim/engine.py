@@ -15,7 +15,7 @@ import simpy
 from sim.clock import Clock, days
 from sim.dock import FULL, HALF, DockYard
 from sim.ids import uuid7
-from sim.orders import expand
+from sim.orders import HullNumbers, arrivals_on, fixed_contracts, hulls, next_contract
 from sim.planner import DockPlan
 
 Event = dict[str, Any]
@@ -126,8 +126,10 @@ class Shipyard:
             raise ValueError("배 공정의 첫째는 도크 공정이어야 한다(도크 계획, ADR-004)")
 
         self.ship_types = params["ship_types"]["ship_types"]
-        for order in expand(params["orders"], self.clock):
-            self.env.process(self.hull_life(self._hull(order)))
+        self.orders = params["orders"]
+        self.mix = yard["annual_plan"]["mix"]
+        self.hull_numbers = HullNumbers(self.clock)
+        self.env.process(self.order_book())
 
     def _hull(self, order: dict[str, Any]) -> Hull:
         ship = self.ship_types[order["ship_type"]]
@@ -164,6 +166,7 @@ class Shipyard:
         )
 
     def run(self, until: int | None = None) -> None:
+        """until(분) 전까지. None이면 끝까지인데, 포아송 수주가 켜져 있으면 끝이 없다."""
         self.env.run(until=until)
 
     # 이벤트
@@ -227,8 +230,25 @@ class Shipyard:
         after_dock = sum(round(hull.durations[p.id] * q[p.id]) for p in self.hull_chain[1:])
         return booking.launch + after_dock + hull.buffer
 
+    def order_book(self) -> Generator:
+        """고정 목록을 계약일마다 받고, 그다음 포아송 도착으로 끝없이 받는다(ADR-004).
+        수주 난수는 공정 시간 난수와 따로라, 공정을 바꿔도 수주는 그대로다."""
+        for c in fixed_contracts(self.orders):
+            yield self.env.timeout(days(c["day"]) - self.env.now)
+            self.contract(c)
+        if not arrivals_on(self.orders):
+            return
+        rng = random.Random(f"{self.seed}:orders")
+        while True:
+            gap, c = next_contract(rng, self.orders["arrivals"], self.mix)
+            yield self.env.timeout(max(1, days(gap)))
+            self.contract(c)
+
+    def contract(self, c: dict[str, Any]) -> None:
+        for order in hulls(self.orders, c, self.env.now, self.hull_numbers):
+            self.env.process(self.hull_life(self._hull(order)))
+
     def hull_life(self, hull: Hull) -> Generator:
-        yield self.env.timeout(hull.contracted)
         self.emit(
             "order.contracted",
             hull.hull_no,
@@ -319,4 +339,7 @@ class Shipyard:
 
 
 def simulate(params: dict[str, Any], seed: int, sink: Sink, until: int | None = None) -> None:
+    """until(분) 전까지 돌린다. 포아송 수주가 켜져 있으면 until이 있어야 끝난다."""
+    if until is None and arrivals_on(params["orders"]):
+        raise ValueError("포아송 수주가 켜져 있어 끝이 없다: until을 주거나 Shipyard.run()으로")
     Shipyard(params, seed, sink).run(until)

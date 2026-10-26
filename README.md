@@ -38,7 +38,7 @@
 uv sync                  # .venv(Python 3.12)와 의존성
 uv run ruff check .      # 린트
 uv run pytest            # 테스트
-uv run python -m sim --seed 0 --out out/truth.jsonl   # 정답 이벤트 로그 만들기
+uv run python -m sim --seed 0 --until 2031-11-02 --out out/truth.jsonl   # 정답 이벤트 로그(--forever면 끝없이)
 uv run python -m sim.periods --seeds 20                # 구간 평균 ≈ 마일스톤 기간표인지
 ```
 
