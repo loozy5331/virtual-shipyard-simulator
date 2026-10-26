@@ -12,6 +12,7 @@ from typing import Any
 import simpy
 
 from sim.clock import Clock, days
+from sim.dock import HALF, DockYard
 from sim.ids import uuid7
 from sim.orders import expand
 
@@ -82,9 +83,15 @@ class Shipyard:
 
         # 자원 하나 = 작업장 번호를 담은 Store. 먼저 기다린 쪽이 먼저 받는다.
         # 작업장 하나에 칸(slots)이 여럿이면 같은 번호를 칸 수만큼 넣는다. 작업장을 번갈아 채운다.
+        # 도크는 따로(ADR-003): 전체 자리 + 반쪽 자리, 진수 때 물을 채운다.
         self.pools: dict[str, simpy.Store] = {}
+        self.docks: dict[str, DockYard] = {}
         for name, r in yard["resources"].items():
             ids = [f"{r['prefix']}-{i}" for i in range(1, r["count"] + 1)]
+            if "half_share" in r:
+                self.docks[name] = DockYard(self.env, ids, days(r["flood_days"]))
+                self.half_share = r["half_share"]
+                continue
             store = simpy.Store(self.env, capacity=r["count"] * r["slots"])
             store.items.extend(ids * r["slots"])
             self.pools[name] = store
@@ -176,6 +183,7 @@ class Shipyard:
         work = hull.block_release[-1]
         work += sum(max(hull.block_durations[p.id]) for p in self.block_chain)
         work += sum(hull.durations[p.id] for p in self.hull_chain)
+        work += sum(d.flood_minutes for d in self.docks.values())
         return hull.contracted + hull.start_lag + work + hull.buffer
 
     def hull_life(self, hull: Hull) -> Generator:
@@ -206,6 +214,9 @@ class Shipyard:
 
     def work(self, hull: Hull, p: Process, block: int | None = None) -> Generator:
         """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번."""
+        if p.resource in self.docks:
+            yield from self.erect(hull, p, self.docks[p.resource])
+            return
         pool = self.pools[p.resource]
         resource_id = yield pool.get()
         duration = hull.durations[p.id] if block is None else hull.block_durations[p.id][block]
@@ -233,6 +244,31 @@ class Shipyard:
         if "end" in p.milestones:
             self.milestone(hull, p.milestones["end"])
         yield pool.put(resource_id)
+
+    def erect(self, hull: Hull, p: Process, docks: DockYard) -> Generator:
+        """도크 공정(ADR-003). 반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
+        완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다."""
+        dock, position = yield docks.enter(hull.hull_no)
+        duration = hull.durations[p.id]
+        started = {
+            "planned_end": self.clock.date(self.env.now + duration),
+            "dock_position": position,
+        }
+        self.emit("hull.process_started", hull.hull_no, hull, started, None, p.id, dock.id)
+        if "start" in p.milestones:
+            self.milestone(hull, p.milestones["start"])
+
+        if position == HALF:
+            half = round(duration * self.half_share)
+            yield self.env.timeout(half)
+            yield docks.half_done(dock)
+            duration -= half
+        yield self.env.timeout(duration)
+        yield docks.finished(dock)
+
+        self.emit("hull.process_completed", hull.hull_no, hull, {}, None, p.id, dock.id)
+        if "end" in p.milestones:
+            self.milestone(hull, p.milestones["end"])
 
 
 def simulate(params: dict[str, Any], seed: int, sink: Sink, until: int | None = None) -> None:
