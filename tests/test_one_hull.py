@@ -8,6 +8,7 @@ from sim.cli import main
 from sim.clock import days
 from sim.engine import simulate
 from sim.schema import validator
+from tests.helpers import single_hull_params
 
 MILESTONES = ["steel_cutting", "keel_laying", "launching", "delivery"]
 
@@ -15,7 +16,7 @@ MILESTONES = ["steel_cutting", "keel_laying", "launching", "delivery"]
 @pytest.fixture(scope="module")
 def events():
     out = []
-    simulate(params.load(), seed=0, sink=out.append)
+    simulate(single_hull_params(), seed=0, sink=out.append)
     return out
 
 
@@ -119,8 +120,7 @@ PERIOD_MONTHS = {
 
 
 def _run(ship_type):
-    p = params.load()
-    p["orders"]["orders"][0]["ship_type"] = ship_type
+    p = single_hull_params(ship_type)
     out = []
     simulate(p, seed=0, sink=out.append)
     return p["ship_types"]["ship_types"][ship_type], out
