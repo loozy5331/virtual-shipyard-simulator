@@ -1,10 +1,21 @@
 # 고정 수주 목록. 계약 한 건에 같은 선종 1~4척(도메인 모델: 한 번에 1~4척).
 # 호선 번호는 계약 순서대로, 계약한 해마다 H-<연도 두 자리><01부터>(예: H-2601).
-# 4단계에서 포아송 수주로 바꾼다.
+# 2단계: 첫해 24척의 고정 수주. 4단계에서 포아송 수주로 바꾼다.
 start_lag_days: {value: 760, grade: 가정, note: 계약 → 강재절단. 일감 3년 이상, 2025년 계약분 2028~2029년 인도(docs/sources.md). 4단계에서 수주잔량으로 계산}
 delivery_buffer_days: {value: 30, grade: 가정, note: 계획 끝 → 계약 납기}
 contracts:
   grade: 가정
-  note: day = epoch부터 계약일까지 일 수, count = 척수. 선주사는 가상
+  note: >-
+    day = epoch부터 계약일까지 일 수, count = 척수. 선주사는 가상.
+    첫해 24척(LNG 12, VLCC 6, 컨테이너 6)으로 연간 계획과 같은 양이지만 앞쪽 반년에 몰려 들어온다.
+    그래서 도크·조립장이 잠시 붐비고 몇 척은 납기를 넘긴다.
   value:
-    - {day: 0, ship_type: lng_carrier, owner: 남해해운, count: 1}
+    - {day: 0, ship_type: lng_carrier, owner: 남해해운, count: 4}
+    - {day: 30, ship_type: vlcc, owner: 동방유조, count: 2}
+    - {day: 60, ship_type: container, owner: 한빛컨테이너, count: 4}
+    - {day: 90, ship_type: lng_carrier, owner: 서강가스, count: 2}
+    - {day: 130, ship_type: vlcc, owner: 동방유조, count: 2}
+    - {day: 170, ship_type: lng_carrier, owner: 남해해운, count: 4}
+    - {day: 220, ship_type: container, owner: 바다로해운, count: 2}
+    - {day: 270, ship_type: lng_carrier, owner: 청해에너지, count: 2}
+    - {day: 330, ship_type: vlcc, owner: 북항상선, count: 2}
