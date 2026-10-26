@@ -13,6 +13,7 @@
   "process": "erection",
   "resource_id": "DOCK-1",
   "payload": {
-    "planned_end": "2027-09-01"
+    "planned_end": "2027-09-01",
+    "dock_position": "half"
   }
 }

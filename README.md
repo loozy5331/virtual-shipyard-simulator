@@ -45,6 +45,7 @@ uv run python -m sim --seed 0 --out out/truth.jsonl   # 정답 이벤트 로그 
 
 - [ADR-001 레포 분리](docs/adr/001-repo-split.md)
 - [ADR-002 시간 모델](docs/adr/002-time-model.md)
+- [ADR-003 세미 탠덤 도크](docs/adr/003-semi-tandem-dock.md)
 
 ## 만든 것
 
