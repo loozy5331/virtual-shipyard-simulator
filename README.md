@@ -59,6 +59,19 @@ uv run python -m emitter.report                                                #
 
 5년 실행(시드 0): 누락 240개를 `seq` 빈 번호(181개)와 대사(끝 번호 59개)로 모두 찾고, 재발행 뒤 누락이 0개가 된다. 재발행본은 `emitted_at`이 처리 시각이라 리포트의 늦음·지연 최대값이 커진다.
 
+### Kafka로 보내기(ADR-007)
+
+```bash
+docker compose up -d                 # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
+uv sync --extra kafka                # confluent-kafka는 선택 의존성
+uv run python -m emitter --sink kafka --checkpoint out/emitter.ckpt --copy-dir out/emitted
+uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
+```
+
+- 토픽 `<source>.events`(예: `mes.events`)와 마감 집계 `<source>.manifest`, 키는 `entity_key`, 값은 봉투 JSON, 메시지 시각은 `emitted_at`
+- 브로커가 내려가면 버리지 않고 기다린다. 멈췄다 다시 켜면 `--checkpoint`에서 이어 보낸다. 마지막 체크포인트 뒤에 보낸 것은 한 번 더 갈 수 있어(at-least-once) 이어 보낸 시작점을 출력한다
+- 6년치(77,802개)를 보내다 브로커를 내리고 방출기를 강제 종료한 뒤 다시 켜도 토픽에 빠진 메시지가 없다. 사본에는 체크포인트 뒤 66줄이 한 번 더 들어갔다
+
 ### 출력 예시
 
 정답 로그의 한 줄(수주). 정답 로그는 `emitted_at` = `occurred_at`이다.
@@ -131,6 +144,7 @@ uv run pytest            # 테스트
 - 4단계: 끝없는 실행(ADR-004) — 첫해 고정 목록 다음 포아송 수주, 계약 때 도크 자리를 예약해 착수일·납기를 정한다(공정 시간 80% 분위수), `--until`(기본 5년)·`--forever`, 날짜별 파일 `out/truth/dt=YYYY-MM-DD/part-0.jsonl`. 끝난 블록·배의 상태를 지워 몇 년을 돌려도 메모리가 일정(15년 7.5~10MB)
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
 - 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
+- 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
 
 ## 브랜치 전략
 
