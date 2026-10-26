@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+
+from sim.schema import validator
 
 SCHEMAS = Path(__file__).resolve().parent.parent / "schemas"
 VALID = sorted((SCHEMAS / "examples" / "valid").glob("*.json"))
@@ -23,15 +23,7 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _validator() -> Draft202012Validator:
-    resources = [_load(p) for p in [SCHEMAS / "envelope.json", *SCHEMAS.glob("payloads/*.json")]]
-    registry = Registry().with_resources((r["$id"], Resource.from_contents(r)) for r in resources)
-    envelope = resources[0]
-    Draft202012Validator.check_schema(envelope)
-    return Draft202012Validator(envelope, registry=registry)
-
-
-VALIDATOR = _validator()
+VALIDATOR = validator()
 
 
 def _example(event_type: str) -> dict:
