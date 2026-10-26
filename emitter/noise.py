@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from emitter.reconcile import Reconciler
+
 KST = timezone(timedelta(hours=9))
 Event = dict[str, Any]
 # (방출 이벤트, 도착 날짜 YYYY-MM-DD)
@@ -59,9 +61,13 @@ def _iso(seconds: int) -> str:
 
 class Emitter:
     """정답 이벤트를 occurred_at 순서로 받아(__call__), 방출 이벤트를 도착 순서로 sink에 넘긴다.
-    끝나면 close()로 남은 것을 내보낸다."""
+    끝나면 close()로 남은 것을 내보낸다. lookback_days를 주면 하루 한 번 대사 이벤트도
+    낸다(ADR-006)."""
 
-    def __init__(self, noise: dict[str, Any], seed: int, sink: Sink):
+    def __init__(
+        self, noise: dict[str, Any], seed: int, sink: Sink, lookback_days: int | None = None
+    ):
+        self.reconciler = None if lookback_days is None else Reconciler(seed, lookback_days, KST)
         self.noise = noise
         self.seed = seed
         self.sink = sink
@@ -74,6 +80,10 @@ class Emitter:
         if occurred < self.now:
             raise ValueError(f"정답 이벤트 시각이 거꾸로 간다: {event['occurred_at']}")
         self.now = occurred
+        if self.reconciler is not None:
+            for cutoff, recon in self.reconciler.due(occurred):
+                self._push(cutoff, recon)
+            self.reconciler.record(event, occurred)
         self._flush(occurred)
         f = fate(self.noise, self.seed, event["event_id"])
         if f.dropped:
@@ -96,4 +106,7 @@ class Emitter:
             self.sink(event, _iso(arrival)[:10])
 
     def close(self) -> None:
+        if self.reconciler is not None:
+            for cutoff, recon in self.reconciler.close():
+                self._push(cutoff, recon)
         self._flush(None)
