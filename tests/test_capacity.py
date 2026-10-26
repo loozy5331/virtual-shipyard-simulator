@@ -13,7 +13,8 @@ RES = YARD["resources"]
 
 
 def _slots(name):
-    return RES[name]["count"] * RES[name]["slots"]
+    """도크는 처리량을 정하는 전체 자리 하나만 센다(ADR-003)."""
+    return RES[name]["count"] * RES[name].get("slots", 1)
 
 
 def _mean_block_days(ship, process):
@@ -32,6 +33,9 @@ def _demand():
                 days = ship["block_count"] * _mean_block_days(ship, p["id"])
             else:
                 days = ship["durations_days"][p["id"]]
+                r = RES[p["resource"]]
+                if "half_share" in r:  # 전체 자리에 머무는 기간 = 남은 몫 + 물 채우기
+                    days = days * (1 - r["half_share"]) + r["flood_days"]
             need[p["resource"]] += n * days
     return need
 

@@ -18,10 +18,11 @@ workforce:
   subcontract: {value: 20000, grade: 가정, note: 대형 조선소 사내 협력사 인력 약 1만 5천~2만 명 보도}
   annual_hours: {value: 2000, grade: 가정, note: 한 사람의 연간 근무 시간(잔업 포함)}
 
-# count = 작업장 수(resource_id가 붙는 단위), slots = 작업장 하나에서 동시에 하는 작업 수(정반·도크 안 배 자리).
+# count = 작업장 수(resource_id가 붙는 단위), slots = 작업장 하나에서 동시에 하는 작업 수(정반 등).
 resources:
   fabrication: {prefix: FAB, count: {value: 5, grade: 가정, note: 공장 하나 하루 약 670t, 계획 물량 하루 약 2,300t}, slots: {value: 1, grade: 가정}}
   assembly: {prefix: ASM, count: {value: 6, grade: 가정}, slots: {value: 64, grade: 가정, note: 조립장 하나의 정반 수}}
-  dock: {prefix: DOCK, count: {value: 5, grade: 가정, note: 빅3 도크 5~11개(2024 공시 인용 보도)}, slots: {value: 2, grade: 가정, note: 대형 도크 한 곳에서 여러 척을 함께 짓는다(보도)}}
+  # 도크는 세미 탠덤(ADR-003): 전체 자리 하나 + 반쪽 자리 하나. 칸(slots) 대신 반쪽 몫과 물 채우기 기간.
+  dock: {prefix: DOCK, count: {value: 5, grade: 가정, note: 빅3 도크 5~11개(2024 공시 인용 보도)}, half_share: {value: 0.5, grade: 가정, note: 반쪽 자리에서 하는 탑재 몫}, flood_days: {value: 1, grade: 가정, note: 물을 채워 진수하고 반쪽 배를 앞으로 옮기기}}
   berth: {prefix: BERTH, count: {value: 12, grade: 가정, note: 안벽 의장 기간이 긴 LNG선이 많아 도크보다 많다}, slots: {value: 1, grade: 가정}}
   trial: {prefix: TRIAL, count: {value: 3, grade: 가정, note: 시운전 팀}, slots: {value: 1, grade: 가정}}

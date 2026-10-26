@@ -59,7 +59,8 @@ def test_seq_is_gapless_per_entity(events):
 
 
 def test_capacity_never_exceeded(events):
-    slots = {r["prefix"]: r["slots"] for r in P["yard"]["resources"].values()}
+    # 도크는 전체 자리 + 반쪽 자리(ADR-003)
+    slots = {r["prefix"]: r.get("slots", 2) for r in P["yard"]["resources"].values()}
     busy = {}
     for e in events:
         if not e["event_type"].endswith(("process_started", "process_completed")):
@@ -93,3 +94,31 @@ def test_dock_is_first_come_first_served(events):
     by_ready = sorted(ready, key=lambda h: (ready[h], h))
     starts = [_t(erection[h]) for h in by_ready]
     assert starts == sorted(starts)
+
+
+def test_semi_tandem_docks_use_both_positions(events):
+    positions = [
+        e["payload"]["dock_position"]
+        for e in events
+        if e["event_type"] == "hull.process_started" and e["process"] == "erection"
+    ]
+    assert positions.count("half") >= 5 and positions.count("full") >= 1
+
+
+def test_half_ship_moves_up_when_ship_ahead_launches(events):
+    """반쪽 자리 배의 앞 배(같은 도크)는 반쪽 배가 들어온 뒤에 진수한다."""
+    started = [
+        e
+        for e in events
+        if e["event_type"] == "hull.process_started" and e["process"] == "erection"
+    ]
+    launched = _hulls(events, "hull.milestone_reached", milestone="launching")
+    for e in started:
+        if e["payload"]["dock_position"] != "half":
+            continue
+        ahead = [
+            s
+            for s in started
+            if s["resource_id"] == e["resource_id"] and _t(s) <= _t(e) and s is not e
+        ][-1]
+        assert _t(launched[ahead["hull_no"]]) > _t(e)
