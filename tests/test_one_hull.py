@@ -7,6 +7,7 @@ from sim import params
 from sim.cli import main
 from sim.clock import days
 from sim.engine import simulate
+from sim.periods import TABLE as PERIOD_MONTHS
 from sim.schema import validator
 from tests.helpers import single_hull_params
 
@@ -110,13 +111,7 @@ def test_delivered_before_contract_date(events):
     assert delivery["occurred_at"][:10] <= order["payload"]["contract_delivery_date"]
 
 
-SHIP_TYPES = ["lng_carrier", "vlcc", "container"]
-# 마일스톤 기간표(도메인 모델 문서): 강재절단 → 착공, 착공 → 진수, 진수 → 인도 (개월)
-PERIOD_MONTHS = {
-    "lng_carrier": (4, 4, 7),
-    "vlcc": (4, 3, 4),
-    "container": (4, 4, 4),
-}
+SHIP_TYPES = list(PERIOD_MONTHS)
 
 
 def _run(ship_type):

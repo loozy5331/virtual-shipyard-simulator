@@ -39,6 +39,7 @@ uv sync                  # .venv(Python 3.12)와 의존성
 uv run ruff check .      # 린트
 uv run pytest            # 테스트
 uv run python -m sim --seed 0 --out out/truth.jsonl   # 정답 이벤트 로그 만들기
+uv run python -m sim.periods --seeds 20                # 구간 평균 ≈ 마일스톤 기간표인지
 ```
 
 ## 결정 기록
@@ -60,6 +61,7 @@ uv run python -m sim --seed 0 --out out/truth.jsonl   # 정답 이벤트 로그 
 - 1단계: 계약 → 인도 약 3~3.5년(일감 3년 이상인 공개 자료에 맞춤)
 - 2단계: 계약 단위 수주(한 계약 1~4척), 첫해 24척이 앞쪽에 몰린 고정 수주 → 도크 대기(최대 35일)와 납기 지연이 생긴다. 작업장은 먼저 온 순서로 배정, 용량 초과 없음
 - 2단계: 세미 탠덤 도크(ADR-003) — 도크 하나에 배 한 척 + 배 반쪽, 진수 때 물을 채워 반쪽 배를 앞으로 옮겨 이어 짓는다
+- 3단계: 공정 소요 시간을 로그정규 분포(`params/v0.yaml`, cv 가정값)에서 뽑는다. 같은 시드면 같은 로그, 다른 시드면 다른 로그. 시드 20개의 구간 평균이 기간표의 ±8% 안
 
 ## 브랜치 전략
 
