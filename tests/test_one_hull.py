@@ -174,3 +174,15 @@ def test_assembly_slots_never_exceeded(ship_type):
             1 if e["event_type"] == "block.process_started" else -1
         )
         assert busy[e["resource_id"]] <= slots
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_blocks_released_over_window(ship_type):
+    ship, events = _run(ship_type)
+    starts = [
+        datetime.fromisoformat(e["occurred_at"])
+        for e in events
+        if e["event_type"] == "block.process_started" and e["process"] == "steel_fabrication"
+    ]
+    spread = (max(starts) - min(starts)).days
+    assert spread == pytest.approx(ship["release_window_days"], abs=2)
