@@ -6,7 +6,7 @@ from sim.params import ParamsError, unwrap
 
 def test_params_load():
     p = params.load()
-    assert p["yard"]["resources"]["dock"]["count"] == 1
+    assert p["yard"]["resources"]["dock"]["count"] == 5
     assert set(p["ship_types"]["ship_types"]) == {"lng_carrier", "vlcc", "container"}
     assert [x["id"] for x in p["processes"]["processes"]] == [
         "steel_fabrication",
