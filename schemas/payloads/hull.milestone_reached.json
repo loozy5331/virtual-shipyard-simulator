@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/hull.milestone_reached.json",
+  "title": "hull.milestone_reached payload",
+  "type": "object",
+  "properties": {
+    "milestone": {
+      "enum": [
+        "steel_cutting",
+        "keel_laying",
+        "launching",
+        "delivery"
+      ]
+    }
+  },
+  "required": [
+    "milestone"
+  ],
+  "additionalProperties": false
+}

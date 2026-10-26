@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/hull.process_completed.json",
+  "title": "hull.process_completed payload",
+  "type": "object",
+  "properties": {},
+  "required": [],
+  "additionalProperties": false
+}

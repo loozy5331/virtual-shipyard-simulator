@@ -1,0 +1,18 @@
+{
+  "event_id": "0192f3a0-0004-7abc-8def-0123456789ab",
+  "event_type": "hull.process_started",
+  "schema_version": 1,
+  "source": "mes",
+  "occurred_at": "2027-05-03T08:00:00+09:00",
+  "emitted_at": "2027-05-03T08:00:00+09:00",
+  "run_id": "v0-42",
+  "entity_key": "H-2601",
+  "seq": 3,
+  "hull_no": "H-2601",
+  "block_id": null,
+  "process": "erection",
+  "resource_id": "DOCK-1",
+  "payload": {
+    "planned_end": "2027-09-01"
+  }
+}

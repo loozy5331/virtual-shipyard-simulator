@@ -47,6 +47,7 @@ uv run pytest            # 테스트
 
 - 0단계: 레포 구조, pytest·ruff CI, CI 통과 뒤 자동 머지
 - 0단계: README 원칙, ADR-001·002
+- 0단계: 이벤트 봉투 스키마(`schemas/envelope.json`)와 이벤트 7종 payload 스키마, 예시 검증 테스트
 
 ## 브랜치 전략
 

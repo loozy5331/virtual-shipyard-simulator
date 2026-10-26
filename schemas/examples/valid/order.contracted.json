@@ -1,0 +1,21 @@
+{
+  "event_id": "0192f3a0-0001-7abc-8def-0123456789ab",
+  "event_type": "order.contracted",
+  "schema_version": 1,
+  "source": "erp",
+  "occurred_at": "2026-11-02T09:00:00+09:00",
+  "emitted_at": "2026-11-02T09:00:00+09:00",
+  "run_id": "v0-42",
+  "entity_key": "H-2601",
+  "seq": 1,
+  "hull_no": "H-2601",
+  "block_id": null,
+  "process": null,
+  "resource_id": null,
+  "payload": {
+    "ship_type": "lng_carrier",
+    "owner": "남해해운",
+    "contract_delivery_date": "2029-03-30",
+    "block_count": 8
+  }
+}

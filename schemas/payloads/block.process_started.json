@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/block.process_started.json",
+  "title": "block.process_started payload",
+  "type": "object",
+  "properties": {
+    "planned_end": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "계획 끝 날짜"
+    },
+    "weight_t": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "블록 무게(t)"
+    }
+  },
+  "required": [
+    "planned_end",
+    "weight_t"
+  ],
+  "additionalProperties": false
+}
