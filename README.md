@@ -46,6 +46,18 @@ uv run python -m emitter.report                          # 노이즈 리포트(-
 - `emitter`: `--seed`는 노이즈 시드(시뮬레이션 시드와 따로). 같은 정답 로그로 노이즈만 바꿔 여러 번 만들 수 있다(ADR-005)
 - `uv run python -m sim.periods --seeds 20`: 구간 평균 ≈ 마일스톤 기간표인지
 
+### 누락 찾기와 재발행(ADR-006)
+
+방출기는 출처 시스템마다 하루 한 번 대사 이벤트(`system.reconciled`, 보낸 개체별 마지막 `seq`)를 낸다. 대사 범위는 마감 전 `lookback_days`(`params/v0.yaml`, 가정 30일) 안에 이벤트가 있었던 개체뿐이다.
+
+```bash
+uv run python -m emitter.report --requests out/requests.jsonl                  # 찾은 누락 → 재발행 요청
+uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09:00:00   # 재발행
+uv run python -m emitter.report                                                # 누락 0개
+```
+
+5년 실행(시드 0): 누락 240개를 `seq` 빈 번호(181개)와 대사(끝 번호 59개)로 모두 찾고, 재발행 뒤 누락이 0개가 된다. 재발행본은 `emitted_at`이 처리 시각이라 리포트의 늦음·지연 최대값이 커진다.
+
 ### 출력 예시
 
 정답 로그의 한 줄(수주). 정답 로그는 `emitted_at` = `occurred_at`이다.
@@ -116,6 +128,7 @@ uv run pytest            # 테스트
 - 3단계: 공정 소요 시간을 로그정규 분포(`params/v0.yaml`, cv 가정값)에서 뽑는다. 같은 시드면 같은 로그, 다른 시드면 다른 로그. 시드 20개의 구간 평균이 기간표의 ±8% 안
 - 4단계: 끝없는 실행(ADR-004) — 첫해 고정 목록 다음 포아송 수주, 계약 때 도크 자리를 예약해 착수일·납기를 정한다(공정 시간 80% 분위수), `--until`(기본 5년)·`--forever`, 날짜별 파일 `out/truth/dt=YYYY-MM-DD/part-0.jsonl`. 끝난 블록·배의 상태를 지워 몇 년을 돌려도 메모리가 일정(15년 7.5~10MB)
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
+- 게이트 뒤: 재발행과 대사(ADR-006) — 하루 한 번 대사 이벤트(최근 `lookback_days` 안의 개체만), 리포트가 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
 
 ## 브랜치 전략
 
