@@ -78,6 +78,9 @@ INVALID = {
         "hull.milestone_reached", lambda e: e["payload"].update(milestone="naming")
     ),
     "bad_ship_type": _broken("order.contracted", lambda e: e["payload"].update(ship_type="bulk")),
+    "bad_dock_position": _broken(
+        "hull.process_started", lambda e: e["payload"].update(dock_position="middle")
+    ),
     "bad_status": _broken(
         "equipment.status_changed", lambda e: e["payload"].update(status="broken")
     ),

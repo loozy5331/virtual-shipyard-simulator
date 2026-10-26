@@ -8,6 +8,13 @@
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "계획 끝 날짜"
+    },
+    "dock_position": {
+      "enum": [
+        "full",
+        "half"
+      ],
+      "description": "탑재만. 도크에 들어간 자리(ADR-003)"
     }
   },
   "required": [
