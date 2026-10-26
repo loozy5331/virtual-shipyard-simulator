@@ -34,8 +34,29 @@ def test_measure_small_case():
     emitted = [_e("A", 3), _e("A", 1), _e("B", 1), _e("B", 1)]
     m = measure(truth, emitted)
     assert (m["dropped"], m["duplicated"], m["out_of_order"]) == (3, 1, 1)
-    assert m["found"] == {"duplicates_by_event_id": 1, "drops_by_seq_gap": 1}
+    assert m["found"] == {
+        "duplicates_by_event_id": 1,
+        "drops_by_seq_gap": 1,
+        "drops_by_reconciliation": 0,
+    }
     assert m["drops_at_tail"] == 2
+    assert m["missing"] == [{"entity_key": "A", "seq": 2}]
+
+
+def test_reconciliation_finds_tail_drops():
+    """B의 대사가 마지막 seq 3을 알려 주면 빠진 2·3도 찾는다."""
+    truth = [_e("A", 1), _e("A", 2), _e("A", 3), _e("B", 1), _e("B", 2), _e("B", 3)]
+    recon = {"event_type": "system.reconciled", "payload": {"last_seq": {"A": 3, "B": 3}}}
+    emitted = [_e("A", 3), _e("A", 1), _e("B", 1), recon]
+    m = measure(truth, emitted)
+    assert m["found"]["drops_by_seq_gap"] == 1
+    assert m["found"]["drops_by_reconciliation"] == 2
+    assert m["drops_at_tail"] == 0
+    assert m["missing"] == [
+        {"entity_key": "A", "seq": 2},
+        {"entity_key": "B", "seq": 2},
+        {"entity_key": "B", "seq": 3},
+    ]
 
 
 @pytest.fixture(scope="module")
@@ -76,5 +97,10 @@ def test_cli_report(tmp_path, capsys):
     main(["--truth", str(truth), "--emitted", str(emitted), "--json"])
     m = json.loads(capsys.readouterr().out)
     assert m["found"]["duplicates_by_event_id"] == m["duplicated"]
-    main(["--truth", str(truth), "--emitted", str(emitted)])
-    assert "모두 찾음" in capsys.readouterr().out
+    requests = tmp_path / "requests.jsonl"
+    main(["--truth", str(truth), "--emitted", str(emitted), "--requests", str(requests)])
+    out = capsys.readouterr().out
+    assert "모두 찾음" in out and "못 찾음 0개" in out
+    lines = requests.read_text().splitlines()
+    assert len(lines) == m["dropped"] > 0
+    assert set(json.loads(lines[0])) == {"entity_key", "seq"}
