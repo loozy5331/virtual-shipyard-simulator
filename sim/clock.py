@@ -19,6 +19,11 @@ class Clock:
     def at(self, minute: int) -> datetime:
         return self.epoch + timedelta(minutes=minute)
 
+    def minute_of(self, date: str) -> int:
+        """YYYY-MM-DD 0시(+09:00)의 시계 분."""
+        at = datetime.fromisoformat(date).replace(tzinfo=self.epoch.tzinfo)
+        return int((at - self.epoch).total_seconds() // 60)
+
     def iso(self, minute: int) -> str:
         return self.at(minute).isoformat(timespec="seconds")
 

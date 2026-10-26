@@ -27,8 +27,8 @@ def _sha256(path):
 
 def test_same_input_same_file(tmp_path):
     a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
-    main(["--seed", "0", "--out", str(a)])
-    main(["--seed", "0", "--out", str(b)])
+    main(["--seed", "0", "--until", "2028-01-01", "--out", str(a)])
+    main(["--seed", "0", "--until", "2028-01-01", "--out", str(b)])
     assert _sha256(a) == _sha256(b)
 
 
