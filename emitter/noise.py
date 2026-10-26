@@ -96,6 +96,16 @@ class Emitter:
         if f.retry is not None:
             self._push(emitted_at + f.retry, out)
 
+    def state(self) -> dict[str, Any]:
+        """체크포인트에 담을 상태(ADR-007). 지연 중인 이벤트와 마감 집계 상태."""
+        manifest = None if self.manifest is None else dict(vars(self.manifest))
+        return {"heap": list(self.heap), "n": self.n, "now": self.now, "manifest": manifest}
+
+    def restore(self, state: dict[str, Any]) -> None:
+        self.heap, self.n, self.now = list(state["heap"]), state["n"], state["now"]
+        if self.manifest is not None:
+            vars(self.manifest).update(state["manifest"])
+
     def _push(self, arrival: int, event: Event) -> None:
         heapq.heappush(self.heap, (arrival, self.n, event))
         self.n += 1
