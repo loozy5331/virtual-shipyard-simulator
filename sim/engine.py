@@ -56,6 +56,14 @@ def block_weights(steel_weight_t: float, n: int) -> list[float]:
     return [round(mean * spread[i * step % n], 1) for i in range(n)]
 
 
+def lognormal_factor(rng: random.Random, cv: float) -> float:
+    """평균 1, 변동계수 cv인 로그정규 배수. cv 0이면 1(고정 시간)."""
+    if cv == 0:
+        return 1.0
+    sigma = math.sqrt(math.log(1 + cv * cv))
+    return rng.lognormvariate(-sigma * sigma / 2, sigma)
+
+
 def _chain(processes: list[dict[str, Any]], unit: str, first_after: list[str]) -> list[Process]:
     """unit에 속한 공정을 선행 관계 순서로. MVP는 한 줄로 이어진 공정만 받는다."""
     chain = [p for p in processes if p["unit"] == unit]
@@ -73,7 +81,9 @@ class Shipyard:
         self.env = simpy.Environment()
         self.clock = Clock(yard["epoch"])
         self.run_id = f"{yard['params_version']}-s{seed}"
+        self.seed = seed
         self.rng_ids = random.Random(f"ids-{seed}")
+        self.cv = {pid: d["cv"] for pid, d in params["variability"]["duration"].items()}
         self.sink = sink
         self.seq: dict[str, int] = {}
 
@@ -171,6 +181,12 @@ class Shipyard:
             }
         )
 
+    def draw(self, key: str, process: str, mean: int) -> tuple[int, float]:
+        """실제 소요 시간(분)과 평균 대비 배수. 난수는 (시드, 개체, 공정)마다 따로 뽑아,
+        한 블록의 시간이 바뀌어도 다른 블록의 시간은 그대로다."""
+        factor = lognormal_factor(random.Random(f"{self.seed}:{key}:{process}"), self.cv[process])
+        return max(1, round(mean * factor)), factor
+
     def milestone(self, hull: Hull, name: str) -> None:
         self.emit("hull.milestone_reached", hull.hull_no, hull, {"milestone": name})
 
@@ -178,8 +194,8 @@ class Shipyard:
 
     def planned_delivery(self, hull: Hull) -> int:
         """계약 납기 = 계약 + 착수 대기 + 공정 시간 + 버퍼. 공정 시간은 마지막 블록이 착수한 뒤
-        블록 공정마다 가장 긴 블록만큼, 그다음 배 공정을 더한다(작업장 대기는 없다고 본다).
-        4단계에서 수주잔량을 반영한 계산으로 바꾼다."""
+        블록 공정마다 가장 긴 블록만큼, 그다음 배 공정을 더한다. 시간은 평균, 작업장 대기는 없다고
+        본다. 4단계에서 수주잔량을 반영한 계산으로 바꾼다."""
         work = hull.block_release[-1]
         work += sum(max(hull.block_durations[p.id]) for p in self.block_chain)
         work += sum(hull.durations[p.id] for p in self.hull_chain)
@@ -213,14 +229,15 @@ class Shipyard:
             yield from self.work(hull, p, i)
 
     def work(self, hull: Hull, p: Process, block: int | None = None) -> Generator:
-        """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번."""
+        """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번.
+        계획 종료일은 평균 시간으로, 실제 시간은 분포에서 뽑는다. 공수도 같은 배수로 늘고 준다."""
         if p.resource in self.docks:
             yield from self.erect(hull, p, self.docks[p.resource])
             return
         pool = self.pools[p.resource]
         resource_id = yield pool.get()
-        duration = hull.durations[p.id] if block is None else hull.block_durations[p.id][block]
-        planned_end = self.clock.date(self.env.now + duration)
+        mean = hull.durations[p.id] if block is None else hull.block_durations[p.id][block]
+        planned_end = self.clock.date(self.env.now + mean)
 
         if block is None:
             key, block_id = hull.hull_no, None
@@ -229,6 +246,7 @@ class Shipyard:
             key = block_id = hull.block_ids[block]
             started = {"planned_end": planned_end, "weight_t": hull.weights_t[block]}
         unit = "block" if block is not None else "hull"
+        duration, factor = self.draw(key, p.id, mean)
 
         self.emit(f"{unit}.process_started", key, hull, started, block_id, p.id, resource_id)
         if "first_start" in p.milestones and not hull.steel_cut:
@@ -239,7 +257,9 @@ class Shipyard:
 
         yield self.env.timeout(duration)
 
-        done = {"work_hours": hull.block_mh[p.id][block]} if block is not None else {}
+        done = {}
+        if block is not None:
+            done["work_hours"] = round(hull.block_mh[p.id][block] * factor, 1)
         self.emit(f"{unit}.process_completed", key, hull, done, block_id, p.id, resource_id)
         if "end" in p.milestones:
             self.milestone(hull, p.milestones["end"])
@@ -249,9 +269,10 @@ class Shipyard:
         """도크 공정(ADR-003). 반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
         완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다."""
         dock, position = yield docks.enter(hull.hull_no)
-        duration = hull.durations[p.id]
+        mean = hull.durations[p.id]
+        duration, _ = self.draw(hull.hull_no, p.id, mean)
         started = {
-            "planned_end": self.clock.date(self.env.now + duration),
+            "planned_end": self.clock.date(self.env.now + mean),
             "dock_position": position,
         }
         self.emit("hull.process_started", hull.hull_no, hull, started, None, p.id, dock.id)
