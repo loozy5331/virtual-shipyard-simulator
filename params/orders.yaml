@@ -4,5 +4,5 @@ orders:
     ship_type: lng_carrier
     owner: 남해해운
     contracted_day: {value: 0, grade: 가정}
-    start_lag_days: {value: 30, grade: 가정, note: 계약 → 강재 가공 착수. 4단계에서 수주잔량으로 계산}
+    start_lag_days: {value: 760, grade: 가정, note: 계약 → 강재절단. 일감 3년 이상, 2025년 계약분 2028~2029년 인도(docs/sources.md). 4단계에서 수주잔량으로 계산}
     delivery_buffer_days: {value: 30, grade: 가정, note: 계획 끝 → 계약 납기}

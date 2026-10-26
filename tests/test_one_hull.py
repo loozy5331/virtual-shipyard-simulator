@@ -202,3 +202,20 @@ def test_work_hours_are_man_hours_by_weight(ship_type):
             assert e["payload"]["work_hours"] == pytest.approx(
                 weight[e["block_id"]] * mh_per_t, abs=0.1
             )
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_contract_to_delivery_years(ship_type):
+    """일감이 3년 이상 쌓여 있어 계약 후 약 3년 뒤에 인도한다(docs/sources.md)."""
+    _, events = _run(ship_type)
+    contracted = datetime.fromisoformat(events[0]["occurred_at"])
+    delivered = datetime.fromisoformat(
+        next(
+            e["occurred_at"]
+            for e in events
+            if e["event_type"] == "hull.milestone_reached"
+            and e["payload"]["milestone"] == "delivery"
+        )
+    )
+    months = (delivered - contracted).days / 30.4
+    assert 33 <= months <= 48, f"{months:.1f}개월"
