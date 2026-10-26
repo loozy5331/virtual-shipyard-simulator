@@ -93,3 +93,55 @@ def test_never_more_than_one_full_and_one_half_per_dock():
         assert len(full.get(dock, ())) <= 1
         assert len(half.get(dock, ())) <= 1
     assert len([e for e in log if e[2] == "launch"]) == 12
+
+
+def _ship_to(env, docks, log, key, arrive, work, want):
+    yield env.timeout(arrive)
+    dock, position = yield docks.enter(key, want)
+    log.append((env.now, key, dock.id, position))
+    if position == HALF:
+        yield env.timeout(work // 2)
+        yield docks.half_done(dock)
+        work -= work // 2
+    yield env.timeout(work)
+    yield docks.finished(dock)
+
+
+def test_ship_enters_only_planned_dock():
+    env = simpy.Environment()
+    yard = DockYard(env, ["DOCK-1", "DOCK-2"], 1)
+    log = []
+    env.process(_ship_to(env, yard, log, "a", 0, 10, 0))
+    env.process(_ship_to(env, yard, log, "b", 1, 10, 0))  # DOCK-2가 비어도 DOCK-1 반쪽
+    env.run()
+    assert log == [(0, "a", "DOCK-1", FULL), (1, "b", "DOCK-1", HALF)]
+
+
+def test_ship_for_other_dock_is_not_blocked():
+    env = simpy.Environment()
+    yard = DockYard(env, ["DOCK-1", "DOCK-2"], 1)
+    log = []
+    for key, arrive in [("a", 0), ("b", 1), ("c", 2)]:
+        env.process(_ship_to(env, yard, log, key, arrive, 10, 0))
+    env.process(_ship_to(env, yard, log, "d", 3, 10, 1))  # c는 DOCK-1을 기다리고 d는 지나간다
+    env.run()
+    assert (3, "d", "DOCK-2", FULL) in log
+    assert [k for _, k, d, _ in log if d == "DOCK-1"] == ["a", "b", "c"]
+
+
+def test_ship_planned_for_full_does_not_take_half():
+    env = simpy.Environment()
+    yard = DockYard(env, ["DOCK-1"], 1)
+    log = []
+
+    def ship(key, arrive, work, plan):
+        yield env.timeout(arrive)
+        dock, position = yield yard.enter(key, 0, plan)
+        log.append((env.now, key, position))
+        yield env.timeout(work)
+        yield yard.finished(dock)
+
+    env.process(ship("a", 0, 10, FULL))
+    env.process(ship("b", 5, 10, FULL))  # 반쪽 자리가 비어도 a가 진수(10 + 물 1)할 때까지
+    env.run()
+    assert log == [(0, "a", FULL), (11, "b", FULL)]

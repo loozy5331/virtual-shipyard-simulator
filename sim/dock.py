@@ -1,7 +1,7 @@
 """세미 탠덤 도크(ADR-003). 도크 하나에 전체 자리와 반쪽 자리가 있다.
 
 배 쪽(엔진)이 부르는 순서:
-    dock, position = yield docks.enter(key)
+    dock, position = yield docks.enter(key, want, plan)  # 도크 계획(ADR-004), 없으면 None
     position == "half"면: 몫을 짓고 → yield docks.half_done(dock) (앞으로 옮겨질 때까지)
     나머지를 짓고 → yield docks.finished(dock) (물을 채워 진수할 때까지)
 """
@@ -31,12 +31,14 @@ class DockYard:
         self.env = env
         self.docks = [Dock(i) for i in ids]
         self.flood_minutes = flood_minutes
-        self.waiting: list[tuple[Hashable, simpy.Event]] = []
+        self.waiting: list[tuple[Hashable, simpy.Event, int | None, str | None]] = []
 
-    def enter(self, key: Hashable) -> simpy.Event:
-        """도크 자리를 기다린다. 값은 (dock, "full" | "half")."""
+    def enter(self, key: Hashable, want: int | None = None, plan: str | None = None) -> simpy.Event:
+        """도크 자리를 기다린다. 값은 (dock, "full" | "half").
+        도크 계획(ADR-004)을 따르면 want = 도크 순번, plan = 계획한 자리. 전체 자리로 계획한 배는
+        일찍 와도 반쪽 자리에 들어가지 않는다. 반쪽 몫 때문에 앞 배 진수를 늦추지 않게."""
         event = self.env.event()
-        self.waiting.append((key, event))
+        self.waiting.append((key, event, want, plan))
         self._admit()
         return event
 
@@ -56,22 +58,31 @@ class DockYard:
         return event
 
     def _admit(self) -> None:
-        """먼저 기다린 배부터. 맨 앞 배가 못 들어가면 뒤 배도 못 들어간다(자격이 같다)."""
-        while self.waiting:
-            key, event = self.waiting[0]
-            spot = self._spot()
+        """먼저 기다린 배부터. 같은 도크를 기다리는 배는 앞지르지 않는다.
+        아무 도크나 받는 배가 못 들어가면 그 뒤 배는 모두 기다린다."""
+        i, blocked = 0, set()
+        while i < len(self.waiting):
+            key, event, want, plan = self.waiting[i]
+            spot = None if want in blocked else self._spot(want, plan)
             if spot is None:
-                return
+                if want is None:
+                    return
+                blocked.add(want)
+                i += 1
+                continue
             dock, position = spot
             setattr(dock, position, key)
-            self.waiting.pop(0)
+            self.waiting.pop(i)
             event.succeed((dock, position))
 
-    def _spot(self) -> tuple[Dock, str] | None:
-        for dock in self.docks:
+    def _spot(self, want: int | None, plan: str | None) -> tuple[Dock, str] | None:
+        docks = self.docks if want is None else [self.docks[want]]
+        for dock in docks:
             if not dock.flooding and dock.full is None and dock.half is None:
                 return dock, FULL
-        for dock in self.docks:
+        if plan == FULL:
+            return None
+        for dock in docks:
             if not dock.flooding and dock.full is not None and dock.half is None:
                 return dock, HALF
         return None
