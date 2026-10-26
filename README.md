@@ -47,6 +47,7 @@ uv run python -m sim.periods --seeds 20                # 구간 평균 ≈ 마�
 - [ADR-001 레포 분리](docs/adr/001-repo-split.md)
 - [ADR-002 시간 모델](docs/adr/002-time-model.md)
 - [ADR-003 세미 탠덤 도크](docs/adr/003-semi-tandem-dock.md)
+- [ADR-004 수주와 납기, 끝없는 실행](docs/adr/004-orders-and-endless-run.md)
 
 ## 만든 것
 
