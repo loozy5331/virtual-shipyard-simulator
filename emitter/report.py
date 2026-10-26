@@ -1,7 +1,8 @@
 """노이즈 리포트: python -m emitter.report --truth out/truth --emitted out/emitted
 
 정답과 비교한 실제 비율(누락·중복·늦음·순서 어긋남, 지연 분포)과, 방출 로그만 보고 찾은 수
-(event_id 중복, 개체별 seq 빈 번호, 대사로 찾은 끝 번호)를 낸다(ADR-005·006).
+(event_id 중복, 개체별 seq 빈 번호, 마감 집계와 대사해 찾은 끝 번호)를 낸다(ADR-005·006).
+리포트는 아직 없는 플랫폼의 대역이다. 대사는 플랫폼이 하고, 원천은 기준(마감 집계)만 낸다.
 --requests FILE이면 찾은 누락을 재발행 요청 파일로 쓴다.
 """
 
@@ -36,12 +37,12 @@ def measure(truth: Iterable[dict[str, Any]], emitted: Iterable[dict[str, Any]]) 
     delays, late, swapped = [], 0, 0
     got: dict[str, set[int]] = {}  # 개체별 받은 seq
     top: dict[str, int] = {}  # 개체별 지금까지 받은 가장 큰 seq
-    reconciled: dict[str, int] = {}  # 개체별 대사가 알려 준 가장 큰 seq(시스템을 가로질러)
+    manifested: dict[str, int] = {}  # 개체별 마감 집계가 알려 준 가장 큰 seq(시스템을 가로질러)
     for e in emitted:
-        if e["event_type"] == "system.reconciled":
+        if e["event_type"] == "system.manifest_published":
             # 노이즈 계산에서는 빼고(ADR-006), 끝 번호 누락을 찾는 데 쓴다
             for key, seq in e["payload"]["last_seq"].items():
-                reconciled[key] = max(reconciled.get(key, 0), seq)
+                manifested[key] = max(manifested.get(key, 0), seq)
             continue
         lines += 1
         if e["event_id"] in seen:
@@ -56,21 +57,22 @@ def measure(truth: Iterable[dict[str, Any]], emitted: Iterable[dict[str, Any]]) 
         top[key] = max(top.get(key, 0), e["seq"])
         got.setdefault(key, set()).add(e["seq"])
 
-    # 방출 로그만으로 찾은 누락: 받은 가장 큰 seq 아래의 빈 번호, 그 위로 대사가 알려 준 번호
+    # 방출 로그만으로 찾은 누락: 받은 가장 큰 seq 아래의 빈 번호,
+    # 그 위로 마감 집계가 알려 준 번호(집계와 맞춰 보기 = 대사)
     missing = []
-    gaps = by_recon = 0
-    for key in sorted(got.keys() | reconciled.keys()):
+    gaps = by_manifest = 0
+    for key in sorted(got.keys() | manifested.keys()):
         received, high = got.get(key, set()), top.get(key, 0)
-        expected = max(high, reconciled.get(key, 0))
+        expected = max(high, manifested.get(key, 0))
         for seq in range(1, expected + 1):
             if seq not in received:
                 missing.append({"entity_key": key, "seq": seq})
                 if seq < high:
                     gaps += 1
                 else:
-                    by_recon += 1
-    # 찾을 수 없는 누락: 받은 번호와 대사보다 뒤의 끝 번호(대사 범위 밖이거나 대사가 없을 때)
-    tail = sum(last - max(top.get(k, 0), reconciled.get(k, 0)) for k, last in truth_last.items())
+                    by_manifest += 1
+    # 찾을 수 없는 누락: 받은 번호와 집계보다 뒤의 끝 번호(집계 범위 밖이거나 집계가 없을 때)
+    tail = sum(last - max(top.get(k, 0), manifested.get(k, 0)) for k, last in truth_last.items())
     unique = len(seen)
     n = len(truth_ids)
     q = quantiles(delays, n=100) if len(delays) > 1 else [0.0] * 99
@@ -89,7 +91,7 @@ def measure(truth: Iterable[dict[str, Any]], emitted: Iterable[dict[str, Any]]) 
         "found": {
             "duplicates_by_event_id": lines - unique,
             "drops_by_seq_gap": gaps,
-            "drops_by_reconciliation": by_recon,
+            "drops_by_reconciliation": by_manifest,
         },
         "missing": missing,
         "drops_at_tail": tail,

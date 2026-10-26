@@ -44,10 +44,13 @@ def test_measure_small_case():
 
 
 def test_reconciliation_finds_tail_drops():
-    """B의 대사가 마지막 seq 3을 알려 주면 빠진 2·3도 찾는다."""
+    """B의 마감 집계가 마지막 seq 3을 알려 주면 대사로 빠진 2·3도 찾는다."""
     truth = [_e("A", 1), _e("A", 2), _e("A", 3), _e("B", 1), _e("B", 2), _e("B", 3)]
-    recon = {"event_type": "system.reconciled", "payload": {"last_seq": {"A": 3, "B": 3}}}
-    emitted = [_e("A", 3), _e("A", 1), _e("B", 1), recon]
+    manifest = {
+        "event_type": "system.manifest_published",
+        "payload": {"last_seq": {"A": 3, "B": 3}},
+    }
+    emitted = [_e("A", 3), _e("A", 1), _e("B", 1), manifest]
     m = measure(truth, emitted)
     assert m["found"]["drops_by_seq_gap"] == 1
     assert m["found"]["drops_by_reconciliation"] == 2
