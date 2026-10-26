@@ -36,6 +36,7 @@
 uv sync                  # .venv(Python 3.12)와 의존성
 uv run ruff check .      # 린트
 uv run pytest            # 테스트
+uv run python -m sim --seed 0 --out out/truth.jsonl   # 정답 이벤트 로그 만들기
 ```
 
 ## 결정 기록
@@ -48,6 +49,7 @@ uv run pytest            # 테스트
 - 0단계: 레포 구조, pytest·ruff CI, CI 통과 뒤 자동 머지
 - 0단계: README 원칙, ADR-001·002
 - 0단계: 이벤트 봉투 스키마(`schemas/envelope.json`)와 이벤트 7종 payload 스키마, 예시 검증 테스트
+- 1단계: SimPy 엔진으로 LNG선 한 척(블록 8개, 간이 필수 공정 5개, 고정 소요 시간) → `truth.jsonl`. 같은 입력이면 같은 파일, 마일스톤 강재절단 < 착공 < 진수 < 인도
 
 ## 브랜치 전략
 
