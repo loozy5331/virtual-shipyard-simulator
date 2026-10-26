@@ -37,6 +37,8 @@ def measure(truth: Iterable[dict[str, Any]], emitted: Iterable[dict[str, Any]]) 
     got: dict[str, set[int]] = {}  # 개체별 받은 seq
     top: dict[str, int] = {}  # 개체별 지금까지 받은 가장 큰 seq
     for e in emitted:
+        if e["event_type"] == "system.reconciled":
+            continue  # 대사 이벤트는 노이즈 계산에서 뺀다(ADR-006)
         lines += 1
         if e["event_id"] in seen:
             continue  # 중복 사본: event_id로 걸러낸다

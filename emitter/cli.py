@@ -23,7 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     out.add_argument("--out", type=Path, help="파일 하나")
     args = parser.parse_args(argv)
 
-    noise = params.load(args.params)["variability"]["noise"]
+    p = params.load(args.params)["variability"]
+    noise, lookback = p["noise"], p["reconciliation"]["lookback_days"]
     if args.out:
         writer = JsonlWriter(args.out)
         sink = lambda event, _date: writer(event)  # noqa: E731
@@ -31,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
         writer = PartitionedWriter(args.out_dir)
         sink = writer.write
     with writer:
-        emitter = Emitter(noise, args.seed, sink)
+        emitter = Emitter(noise, args.seed, sink, lookback)
         for event in read_events(args.truth):
             emitter(event)
         emitter.close()

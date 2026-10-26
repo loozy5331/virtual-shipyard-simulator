@@ -20,6 +20,7 @@ def _e(key, seq, minute=0, delay_s=0):
     emitted = f"2027-01-01T00:{minute:02d}:{delay_s:02d}+09:00"
     return {
         "event_id": f"{key}-{seq}",
+        "event_type": "block.process_completed",
         "entity_key": key,
         "seq": seq,
         "occurred_at": at,
