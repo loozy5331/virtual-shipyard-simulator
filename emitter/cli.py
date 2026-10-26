@@ -7,9 +7,9 @@
 import argparse
 from pathlib import Path
 
+from emitter.checkpoint import run
 from emitter.noise import Emitter
 from sim import params
-from sim.reader import read_events
 from sim.writer import JsonlWriter, PartitionedWriter
 
 
@@ -32,9 +32,6 @@ def main(argv: list[str] | None = None) -> int:
         writer = PartitionedWriter(args.out_dir)
         sink = writer.write
     with writer:
-        emitter = Emitter(noise, args.seed, sink, lookback)
-        for event in read_events(args.truth):
-            emitter(event)
-        emitter.close()
+        run(args.truth, Emitter(noise, args.seed, sink, lookback), flush=lambda: None)
     print(f"{writer.count} events → {args.out or args.out_dir}")
     return 0
