@@ -1,0 +1,10 @@
+# 공정 소요 시간의 흩어짐(3단계). 평균은 ship_types.yaml의 고정 시간 그대로 두고, 여기서는 흩어짐만 정한다.
+# 파일 이름 = yard.yaml의 params_version. 보정하면 v1.yaml을 새로 만든다(게이트 이후 8단계).
+# 실제 시간 = 평균 × 배수, 배수는 평균 1인 로그정규 분포. cv = 표준편차 ÷ 평균. cv 0이면 고정 시간.
+params_version: v0
+duration:
+  steel_fabrication: {dist: lognormal, cv: {value: 0.2, grade: 가정, note: 절단·가공은 기계 작업이라 덜 흩어진다}}
+  block_assembly: {dist: lognormal, cv: {value: 0.3, grade: 가정, note: 용접 인력·자재에 따라 많이 흩어진다}}
+  erection: {dist: lognormal, cv: {value: 0.1, grade: 가정, note: 도크 일정은 진수 날짜에 묶여 있어 덜 흩어진다}}
+  quay_outfitting: {dist: lognormal, cv: {value: 0.15, grade: 가정}}
+  sea_trial: {dist: lognormal, cv: {value: 0.2, grade: 가정, note: 날씨·결함 재시험}}
