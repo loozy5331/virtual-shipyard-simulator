@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     p = params.load(args.params)["variability"]
-    noise, lookback = p["noise"], p["reconciliation"]["lookback_days"]
+    noise, lookback = p["noise"], p["manifest"]["lookback_days"]
     if args.out:
         writer = JsonlWriter(args.out)
         sink = lambda event, _date: writer(event)  # noqa: E731

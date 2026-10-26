@@ -22,6 +22,7 @@ noise:
     late_sigma: {value: 1.0, grade: 가정}
     max_hours: {value: 72, grade: 가정, note: 지연 상한. 방출기 버퍼 크기를 정한다}
 
-# 대사(ADR-006). 출처 시스템마다 하루 한 번 0시 마감으로, 보낸 개체별 마지막 seq를 보낸다.
-reconciliation:
-  lookback_days: {value: 30, grade: 가정, note: 마감 전 이 기간 안에 이벤트가 있었던 개체만 대사한다. 오래된 개체는 대사하지 않는다}
+# 마감 집계(ADR-006). 출처 시스템마다 하루 한 번 0시 마감으로, 보낸 개체별 마지막 seq를 보낸다.
+# 원천이 내는 대사의 기준이다. 대사(받은 것과 맞춰 보기)와 대사할 범위는 플랫폼이 정한다.
+manifest:
+  lookback_days: {value: 30, grade: 가정, note: 마감 전 이 기간 안에 이벤트를 보낸 개체만 집계에 넣는다. 원천이 상태를 들고 있는 기간}

@@ -1,6 +1,7 @@
-"""대사(ADR-006). 출처 시스템마다 하루 한 번 0시 마감으로, 보낸 개체별 마지막 seq를 낸다.
+"""마감 집계(ADR-006). 출처 시스템마다 하루 한 번 0시 마감으로, 보낸 개체별 마지막 seq를 낸다.
 
-대사 범위는 마감 전 lookback_days 안에 이벤트가 있었던 개체뿐이다. 그보다 오래된 개체는
+원천은 대사의 기준만 내놓고, 받은 것과 맞춰 보는 대사는 플랫폼이 한다(여기서는 리포트가 대역).
+집계 범위는 마감 전 lookback_days 안에 이벤트를 보낸 개체뿐이다. 그보다 오래된 개체는
 상태에서 지운다. 그래서 끝없이 돌려도 상태가 범위만큼만 남는다.
 """
 
@@ -14,11 +15,11 @@ DAY = 86400
 Event = dict[str, Any]
 
 
-class Reconciler:
+class ManifestPublisher:
     def __init__(self, seed: int, lookback_days: int, tz):
         self.lookback_days = lookback_days
         self.tz = tz
-        self.rng_ids = random.Random(f"{seed}:recon")
+        self.rng_ids = random.Random(f"{seed}:manifest")
         # 시스템 → 개체 → (보낸 마지막 seq, 마지막 이벤트 시각 초)
         self.sent: dict[str, dict[str, tuple[int, int]]] = {}
         self.seq: dict[str, int] = {}
@@ -33,13 +34,13 @@ class Reconciler:
         return int(datetime.combine(day, time(), self.tz).timestamp())
 
     def due(self, occurred: int) -> list[tuple[int, Event]]:
-        """occurred까지 지난 마감의 대사 이벤트 (마감 시각, 이벤트).
+        """occurred까지 지난 마감의 집계 이벤트 (마감 시각, 이벤트).
         0시 정각 이벤트는 다음 날 몫이라 마감을 먼저 낸다."""
         if self.cutoff is None:
             self.cutoff = self._next_midnight(occurred)
         out = []
         while self.cutoff <= occurred:
-            out += self._reconcile(self.cutoff)
+            out += self._publish(self.cutoff)
             self.cutoff += DAY
         return out
 
@@ -51,24 +52,24 @@ class Reconciler:
         sent[event["entity_key"]] = (max(last, event["seq"]), occurred)
 
     def close(self) -> list[tuple[int, Event]]:
-        """마지막 이벤트 다음 마감의 대사."""
-        return [] if self.cutoff is None else self._reconcile(self.cutoff)
+        """마지막 이벤트 다음 마감의 집계."""
+        return [] if self.cutoff is None else self._publish(self.cutoff)
 
-    def _reconcile(self, cutoff: int) -> list[tuple[int, Event]]:
+    def _publish(self, cutoff: int) -> list[tuple[int, Event]]:
         oldest = cutoff - self.lookback_days * DAY
         out = []
         for source in sorted(self.sent):
             sent = self.sent[source]
             for key in [k for k, (_, at) in sent.items() if at < oldest]:
-                del sent[key]  # 대사 범위 밖: 다시는 대사하지 않는다
+                del sent[key]  # 집계 범위 밖: 다시는 집계에 넣지 않는다
             if not sent:
                 continue
-            key = f"RECON-{source.upper()}"
+            key = f"MANIFEST-{source.upper()}"
             self.seq[key] = self.seq.get(key, 0) + 1
             at = self._iso(cutoff)
             event = {
                 "event_id": uuid7(cutoff * 1000, self.rng_ids),
-                "event_type": "system.reconciled",
+                "event_type": "system.manifest_published",
                 "schema_version": 1,
                 "source": source,
                 "occurred_at": at,
