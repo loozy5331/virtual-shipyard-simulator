@@ -25,6 +25,7 @@ def periods(p: dict[str, Any], ship_type: str, seed: int) -> list[float]:
     """한 척만 수주해 돌린 뒤 마일스톤 사이 기간(개월). 다른 배와의 대기는 빠진다."""
     p = {**p, "orders": {**p["orders"]}}
     p["orders"]["contracts"] = [{"day": 0, "ship_type": ship_type, "owner": "-", "count": 1}]
+    p["orders"]["arrivals"] = {**p["orders"]["arrivals"], "contracts_per_year": 0}
     at = {}
 
     def sink(e: dict[str, Any]) -> None:
