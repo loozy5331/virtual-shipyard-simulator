@@ -98,6 +98,7 @@ uv run pytest            # 테스트
 - [ADR-003 세미 탠덤 도크](docs/adr/003-semi-tandem-dock.md)
 - [ADR-004 수주와 납기, 끝없는 실행](docs/adr/004-orders-and-endless-run.md)
 - [ADR-005 방출기와 노이즈](docs/adr/005-emitter-noise.md)
+- [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
 
 ## 만든 것
 

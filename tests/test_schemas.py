@@ -16,6 +16,7 @@ EVENT_TYPES = [
     "hull.process_completed",
     "hull.milestone_reached",
     "equipment.status_changed",
+    "system.reconciled",
 ]
 
 
@@ -84,6 +85,8 @@ INVALID = {
     "bad_status": _broken(
         "equipment.status_changed", lambda e: e["payload"].update(status="broken")
     ),
+    "reconciled_with_hull": _broken("system.reconciled", lambda e: e.update(hull_no="H-2601")),
+    "reconciled_empty": _broken("system.reconciled", lambda e: e["payload"].update(last_seq={})),
     "unknown_event_type": _broken(
         "hull.process_completed", lambda e: e.update(event_type="hull.x")
     ),
