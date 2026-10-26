@@ -1,0 +1,14 @@
+# 개발용 Kafka 호환 브로커(ADR-007). 토픽은 자동으로 만든다.
+# docker compose up -d → uv run python -m emitter --sink kafka
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092
+    ports:
+      - "9092:9092"
