@@ -1,0 +1,19 @@
+{
+  "event_id": "0192f3a0-0002-7abc-8def-0123456789ab",
+  "event_type": "block.process_started",
+  "schema_version": 1,
+  "source": "mes",
+  "occurred_at": "2027-01-04T08:00:00+09:00",
+  "emitted_at": "2027-01-04T08:00:37+09:00",
+  "run_id": "v0-42",
+  "entity_key": "H-2601-B001",
+  "seq": 1,
+  "hull_no": "H-2601",
+  "block_id": "H-2601-B001",
+  "process": "steel_fabrication",
+  "resource_id": "FAB-1",
+  "payload": {
+    "planned_end": "2027-01-25",
+    "weight_t": 310.5
+  }
+}

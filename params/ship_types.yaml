@@ -1,0 +1,57 @@
+# 선종. 숫자는 모두 {value, grade} 꼴로 근거 등급(출처·맞춤·가정)을 단다.
+#
+# 블록 수는 크기에서 나온다: 강재 중량(크기에 비례) ÷ 블록 평균 무게.
+# 여기서 블록은 블록 조립을 마치고 탑재(PE 흡수)로 가는 단위다(약 100~300t).
+# 선종별 블록 수를 그대로 적은 공개 자료는 아직 찾지 못했다. Mendeley 블록 데이터로 바꿀 대상이다.
+#
+# 블록 공수(MH) = 무게(t) × mh_per_t. block.process_completed의 work_hours로 나간다.
+# 블록 작업 시간 = base_days + 무게(t) × days_per_100t ÷ 100 (도메인 모델: 블록 작업 시간은 무게에 비례)
+# 블록 착수 계획: 배 한 척의 블록은 release_window_days에 걸쳐 고르게 가공에 들어간다.
+# 실제 조선소도 탑재 순서에 맞춰 블록을 나눠 착수한다. 가공 공장이 여럿이어도 한 척이 몰아 가공하지 않는다.
+# 배 공정 시간은 마일스톤 기간표(착공 → 진수, 진수 → 인도)를 따른다(달력 일, ADR-002).
+ship_types:
+  lng_carrier:
+    name: LNG운반선
+    size: 174,000㎥
+    length_m: {value: 299, grade: 출처, note: Puteri Kelantan(2026 인도) 약 299 × 46.4}
+    beam_m: {value: 46.4, grade: 출처}
+    steel_weight_t: {value: 26000, grade: 가정, note: 선체 강재. 크기 대비 VLCC보다 가볍다}
+    block_count: {value: 170, grade: 가정, note: 평균 약 153t. 화물창 주변 구조가 복잡해 블록이 작고 많다}
+    release_window_days: {value: 90, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
+    block_work:
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}, mh_per_t: {value: 3, grade: 가정, note: 절단·곡가공은 기계 작업이 많다}}
+      block_assembly: {base_days: {value: 12, grade: 가정}, days_per_100t: {value: 8, grade: 가정, note: 보냉재 받침 등 선행의장이 많아 느리다}, mh_per_t: {value: 25, grade: 가정, note: 소조립·중조립·도장·선행의장 흡수. 화물창 주변이 복잡하다}}
+    durations_days:
+      erection: {value: 120, grade: 가정, note: 기간표 착공 → 진수 4개월}
+      quay_outfitting: {value: 180, grade: 가정, note: 시운전과 합쳐 진수 → 인도 7개월(출처, 데일리안)}
+      sea_trial: {value: 30, grade: 가정}
+  vlcc:
+    name: VLCC(원유운반선)
+    size: 300,000 DWT
+    length_m: {value: 321.9, grade: 출처, note: TRF Horten(2018 인도) 321.9 × 60}
+    beam_m: {value: 60, grade: 출처}
+    steel_weight_t: {value: 38000, grade: 가정, note: 강재량이 가장 많은 선종}
+    block_count: {value: 190, grade: 가정, note: 평균 200t. 평평한 이중선체 구조라 블록이 크다}
+    release_window_days: {value: 95, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
+    block_work:
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}, mh_per_t: {value: 2.5, grade: 가정, note: 절단·곡가공은 기계 작업이 많다}}
+      block_assembly: {base_days: {value: 8, grade: 가정}, days_per_100t: {value: 6, grade: 가정}, mh_per_t: {value: 15, grade: 가정, note: 소조립·중조립·도장·선행의장 흡수}}
+    durations_days:
+      erection: {value: 90, grade: 가정, note: 기간표 착공 → 진수 3개월}
+      quay_outfitting: {value: 90, grade: 가정, note: 시운전과 합쳐 진수 → 인도 4개월}
+      sea_trial: {value: 30, grade: 가정}
+  container:
+    name: 컨테이너선
+    size: 24,000 TEU
+    length_m: {value: 400, grade: 출처, note: Ever Alot(2022 인도) 400 × 61.5}
+    beam_m: {value: 61.5, grade: 출처}
+    steel_weight_t: {value: 52000, grade: 가정, note: 길이가 가장 길어 강재 중량도 가장 크다}
+    block_count: {value: 260, grade: 가정, note: 평균 200t}
+    release_window_days: {value: 95, grade: 가정, note: 기간표 강재절단 → 착공 4개월에서 마지막 블록 조립 시간을 뺀 값}
+    block_work:
+      steel_fabrication: {base_days: {value: 0, grade: 가정}, days_per_100t: {value: 0.15, grade: 가정, note: 가공 공장 하나가 하루 약 670t}, mh_per_t: {value: 2.5, grade: 가정, note: 절단·곡가공은 기계 작업이 많다}}
+      block_assembly: {base_days: {value: 8, grade: 가정}, days_per_100t: {value: 6, grade: 가정}, mh_per_t: {value: 15, grade: 가정, note: 소조립·중조립·도장·선행의장 흡수}}
+    durations_days:
+      erection: {value: 120, grade: 가정, note: 기간표 착공 → 진수 4개월}
+      quay_outfitting: {value: 90, grade: 가정, note: 시운전과 합쳐 진수 → 인도 4개월}
+      sea_trial: {value: 30, grade: 가정}

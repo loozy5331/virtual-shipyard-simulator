@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/equipment.status_changed.json",
+  "title": "equipment.status_changed payload",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": [
+        "down",
+        "up"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "고장 원인. up이면 null"
+    }
+  },
+  "required": [
+    "status",
+    "reason"
+  ],
+  "additionalProperties": false
+}

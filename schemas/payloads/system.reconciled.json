@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/system.reconciled.json",
+  "title": "system.reconciled payload",
+  "description": "출처 시스템의 하루 마감 대사. 마감 전 lookback_days 안에 이벤트가 있었던 개체만(ADR-006)",
+  "type": "object",
+  "properties": {
+    "lookback_days": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "last_seq": {
+      "type": "object",
+      "description": "개체(entity_key) → 이 시스템이 보낸 마지막 seq",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minProperties": 1
+    }
+  },
+  "required": [
+    "lookback_days",
+    "last_seq"
+  ],
+  "additionalProperties": false
+}
