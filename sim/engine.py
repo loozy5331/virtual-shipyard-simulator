@@ -13,6 +13,7 @@ import simpy
 
 from sim.clock import Clock, days
 from sim.ids import uuid7
+from sim.orders import expand
 
 Event = dict[str, Any]
 Sink = Callable[[Event], None]
@@ -89,7 +90,7 @@ class Shipyard:
             self.pools[name] = store
 
         self.ship_types = params["ship_types"]["ship_types"]
-        for order in params["orders"]["orders"]:
+        for order in expand(params["orders"], self.clock):
             self.env.process(self.hull_life(self._hull(order)))
 
     def _hull(self, order: dict[str, Any]) -> Hull:
@@ -112,9 +113,9 @@ class Shipyard:
             hull_no=order["hull_no"],
             ship_type=order["ship_type"],
             owner=order["owner"],
-            contracted=days(order["contracted_day"]),
-            start_lag=days(order["start_lag_days"]),
-            buffer=days(order["delivery_buffer_days"]),
+            contracted=order["contracted"],
+            start_lag=order["start_lag"],
+            buffer=order["buffer"],
             block_ids=[f"{order['hull_no']}-B{i:03d}" for i in range(1, n + 1)],
             weights_t=weights,
             block_mh={
