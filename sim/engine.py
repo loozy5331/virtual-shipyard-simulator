@@ -267,11 +267,13 @@ class Shipyard:
 
         for p in self.hull_chain:
             yield from self.work(hull, p)
+        self.seq.pop(hull.hull_no)  # 인도한 배는 더 이벤트가 없다. 끝없이 돌려도 상태가 쌓이지 않게
 
     def block_life(self, hull: Hull, i: int) -> Generator:
         yield self.env.timeout(hull.block_release[i])
         for p in self.block_chain:
             yield from self.work(hull, p, i)
+        self.seq.pop(hull.block_ids[i])  # 탑재로 넘어간 블록은 더 이벤트가 없다
 
     def work(self, hull: Hull, p: Process, block: int | None = None) -> Generator:
         """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번.

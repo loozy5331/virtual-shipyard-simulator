@@ -7,7 +7,7 @@
 """
 
 from collections.abc import Generator, Hashable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import simpy
 
@@ -23,7 +23,6 @@ class Dock:
     launch: simpy.Event | None = None  # 전체 자리 배가 완성되어 진수를 기다린다
     move: simpy.Event | None = None  # 반쪽 배가 앞으로 옮겨지기를 기다린다
     flooding: bool = False
-    launched: list[Hashable] = field(default_factory=list)
 
 
 class DockYard:
@@ -99,7 +98,6 @@ class DockYard:
     def _flood(self, dock: Dock) -> Generator:
         yield self.env.timeout(self.flood_minutes)
         launch, move = dock.launch, dock.move
-        dock.launched.append(dock.full)
         dock.full, dock.half = dock.half, None
         dock.half_ready, dock.launch, dock.move, dock.flooding = False, None, None, False
         launch.succeed()
