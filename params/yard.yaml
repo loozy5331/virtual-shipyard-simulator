@@ -1,0 +1,10 @@
+# 가상 조선소 설정. 이름과 배치는 가상이다(README 공개 출처 원칙).
+name: 서해조선
+params_version: v0
+epoch: "2026-11-02T08:00:00+09:00"   # 시뮬레이션 시계 0분(ADR-002)
+resources:
+  fabrication: {prefix: FAB, count: {value: 1, grade: 가정}}
+  assembly: {prefix: ASM, count: {value: 3, grade: 가정}}
+  dock: {prefix: DOCK, count: {value: 1, grade: 가정}}
+  berth: {prefix: BERTH, count: {value: 4, grade: 가정}}
+  trial: {prefix: TRIAL, count: {value: 1, grade: 가정}}

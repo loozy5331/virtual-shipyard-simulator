@@ -1,0 +1,8 @@
+# 고정 수주 목록. 1단계는 한 척. 4단계에서 포아송 수주로 바꾼다.
+orders:
+  - hull_no: H-2601
+    ship_type: lng_carrier
+    owner: 남해해운
+    contracted_day: {value: 0, grade: 가정}
+    start_lag_days: {value: 30, grade: 가정, note: 계약 → 강재 가공 착수. 4단계에서 수주잔량으로 계산}
+    delivery_buffer_days: {value: 30, grade: 가정, note: 계획 끝 → 계약 납기}

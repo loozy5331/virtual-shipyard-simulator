@@ -1,0 +1,16 @@
+# 선종. 숫자는 모두 {value, grade} 꼴로 근거 등급(출처·맞춤·가정)을 단다.
+# 1단계는 LNG운반선 한 종, 소요 시간은 고정값(달력 일, ADR-002).
+ship_types:
+  lng_carrier:
+    name: LNG운반선
+    size: 174,000㎥
+    block_count: {value: 8, grade: 가정, note: Mendeley 블록 데이터로 바꿀 대상}
+    block_weights_t:
+      value: [310, 285, 340, 295, 360, 320, 275, 330]
+      grade: 가정
+    durations_days:
+      steel_fabrication: {value: 8, grade: 가정, note: 블록 하나}
+      block_assembly: {value: 30, grade: 가정, note: 블록 하나}
+      erection: {value: 120, grade: 가정, note: 기간표 착공 → 진수 4개월}
+      quay_outfitting: {value: 180, grade: 가정, note: 시운전과 합쳐 진수 → 인도 7개월(출처, 데일리안)}
+      sea_trial: {value: 30, grade: 가정}
