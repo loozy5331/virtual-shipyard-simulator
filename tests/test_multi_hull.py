@@ -46,9 +46,16 @@ def test_order_mix_matches_annual_plan(events):
     assert mix == P["yard"]["annual_plan"]["mix"]
 
 
-def test_every_event_matches_schema(events):
+def test_events_match_schema(events):
+    """배·수주 이벤트는 모두, 블록 이벤트는 종류·공정마다 첫 이벤트와 20개에 하나씩 검사한다.
+    모두 검사하면 2만 개에 9초쯤 걸린다. 한 척 테스트는 모두 검사한다."""
     v = validator()
-    assert all(v.is_valid(e) for e in events)
+    seen = set()
+    for i, e in enumerate(events):
+        kind = (e["event_type"], e["process"])
+        if not e["event_type"].startswith("block.") or kind not in seen or i % 20 == 0:
+            seen.add(kind)
+            assert v.is_valid(e), e
 
 
 def test_seq_is_gapless_per_entity(events):
