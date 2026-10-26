@@ -78,7 +78,7 @@ def test_every_block_passes_block_processes(events):
     for e in events:
         if e["event_type"] == "block.process_completed":
             done.setdefault(e["block_id"], []).append(e["process"])
-    assert len(done) == 8
+    assert len(done) == params.load()["ship_types"]["ship_types"]["lng_carrier"]["block_count"]
     assert all(p == ["steel_fabrication", "block_assembly"] for p in done.values())
 
 
@@ -107,3 +107,70 @@ def test_delivered_before_contract_date(events):
     assert order["event_type"] == "order.contracted"
     delivery = [e for e in events if e["event_type"] == "hull.milestone_reached"][-1]
     assert delivery["occurred_at"][:10] <= order["payload"]["contract_delivery_date"]
+
+
+SHIP_TYPES = ["lng_carrier", "vlcc", "container"]
+# 마일스톤 기간표(도메인 모델 문서): 강재절단 → 착공, 착공 → 진수, 진수 → 인도 (개월)
+PERIOD_MONTHS = {
+    "lng_carrier": (4, 4, 7),
+    "vlcc": (4, 3, 4),
+    "container": (4, 4, 4),
+}
+
+
+def _run(ship_type):
+    p = params.load()
+    p["orders"]["orders"][0]["ship_type"] = ship_type
+    out = []
+    simulate(p, seed=0, sink=out.append)
+    return p["ship_types"]["ship_types"][ship_type], out
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_block_count_and_weight_follow_ship_type(ship_type):
+    ship, events = _run(ship_type)
+    fab = [
+        e
+        for e in events
+        if e["event_type"] == "block.process_started" and e["process"] == "steel_fabrication"
+    ]
+    assert len(fab) == ship["block_count"]
+    weights = [e["payload"]["weight_t"] for e in fab]
+    assert sum(weights) == pytest.approx(ship["steel_weight_t"], rel=0.001)
+    mean = ship["steel_weight_t"] / ship["block_count"]
+    assert min(weights) >= 0.6 * mean - 0.1 and max(weights) <= 1.4 * mean + 0.1
+
+
+def test_bigger_ship_has_more_blocks():
+    ships = params.load()["ship_types"]["ship_types"]
+    assert ships["lng_carrier"]["block_count"] < ships["vlcc"]["block_count"]
+    assert ships["vlcc"]["block_count"] < ships["container"]["block_count"]
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_milestone_periods_near_table(ship_type):
+    _, events = _run(ship_type)
+    at = {
+        e["payload"]["milestone"]: datetime.fromisoformat(e["occurred_at"])
+        for e in events
+        if e["event_type"] == "hull.milestone_reached"
+    }
+    order = ["steel_cutting", "keel_laying", "launching", "delivery"]
+    months = [(at[b] - at[a]).days / 30.4 for a, b in zip(order, order[1:], strict=False)]
+    assert months == pytest.approx(PERIOD_MONTHS[ship_type], abs=0.5)
+    delivery_date = at["delivery"].date().isoformat()
+    assert delivery_date <= events[0]["payload"]["contract_delivery_date"]
+
+
+@pytest.mark.parametrize("ship_type", SHIP_TYPES)
+def test_assembly_slots_never_exceeded(ship_type):
+    _, events = _run(ship_type)
+    slots = params.load()["yard"]["resources"]["assembly"]["slots"]
+    busy = {}
+    for e in events:
+        if e["process"] != "block_assembly":
+            continue
+        busy[e["resource_id"]] = busy.get(e["resource_id"], 0) + (
+            1 if e["event_type"] == "block.process_started" else -1
+        )
+        assert busy[e["resource_id"]] <= slots

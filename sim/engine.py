@@ -3,6 +3,7 @@
 엔진은 출력 방식을 모른다. 이벤트 dict를 sink에 넘길 뿐이다(파일 쓰기는 writer).
 """
 
+import math
 import random
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
@@ -37,8 +38,18 @@ class Hull:
     buffer: int
     block_ids: list[str]
     weights_t: list[float]
+    block_durations: dict[str, list[int]]
     durations: dict[str, int]
     steel_cut: bool = field(default=False)
+
+
+def block_weights(steel_weight_t: float, n: int) -> list[float]:
+    """강재 중량을 블록 n개로 나눈다. 평균의 0.6~1.4배로 고르게 퍼뜨리고, 큰 블록과 작은 블록이
+    섞여 나오게 순서를 섞는다. 난수는 쓰지 않는다(무게 분포는 3단계에서 params로)."""
+    mean = steel_weight_t / n
+    spread = [0.6 + 0.8 * i / (n - 1) for i in range(n)] if n > 1 else [1.0]
+    step = next(k for k in range(n // 2 + 1, n + 1) if math.gcd(k, n) == 1)
+    return [round(mean * spread[i * step % n], 1) for i in range(n)]
 
 
 def _chain(processes: list[dict[str, Any]], unit: str, first_after: list[str]) -> list[Process]:
@@ -67,10 +78,12 @@ class Shipyard:
         self.hull_chain = _chain(processes, "hull", [self.block_chain[-1].id])
 
         # 자원 하나 = 작업장 번호를 담은 Store. 먼저 기다린 쪽이 먼저 받는다.
+        # 작업장 하나에 칸(slots)이 여럿이면 같은 번호를 칸 수만큼 넣는다. 작업장을 번갈아 채운다.
         self.pools: dict[str, simpy.Store] = {}
         for name, r in yard["resources"].items():
-            store = simpy.Store(self.env, capacity=r["count"])
-            store.items.extend(f"{r['prefix']}-{i}" for i in range(1, r["count"] + 1))
+            ids = [f"{r['prefix']}-{i}" for i in range(1, r["count"] + 1)]
+            store = simpy.Store(self.env, capacity=r["count"] * r["slots"])
+            store.items.extend(ids * r["slots"])
             self.pools[name] = store
 
         self.ship_types = params["ship_types"]["ship_types"]
@@ -80,8 +93,19 @@ class Shipyard:
     def _hull(self, order: dict[str, Any]) -> Hull:
         ship = self.ship_types[order["ship_type"]]
         n = ship["block_count"]
-        if len(ship["block_weights_t"]) != n:
-            raise ValueError(f"{order['ship_type']}: block_weights_t는 {n}개여야 한다")
+        if n > 999:
+            raise ValueError(f"{order['ship_type']}: block_id(B001~B999)는 블록 999개까지")
+        weights = block_weights(ship["steel_weight_t"], n)
+        block_durations = {
+            p.id: [
+                days(
+                    ship["block_work"][p.id]["base_days"]
+                    + w * ship["block_work"][p.id]["days_per_100t"] / 100
+                )
+                for w in weights
+            ]
+            for p in self.block_chain
+        }
         return Hull(
             hull_no=order["hull_no"],
             ship_type=order["ship_type"],
@@ -90,7 +114,8 @@ class Shipyard:
             start_lag=days(order["start_lag_days"]),
             buffer=days(order["delivery_buffer_days"]),
             block_ids=[f"{order['hull_no']}-B{i:03d}" for i in range(1, n + 1)],
-            weights_t=ship["block_weights_t"],
+            weights_t=weights,
+            block_durations=block_durations,
             durations={k: days(v) for k, v in ship["durations_days"].items()},
         )
 
@@ -137,12 +162,13 @@ class Shipyard:
     # 프로세스
 
     def planned_delivery(self, hull: Hull) -> int:
-        """계약 납기 = 계약 + 착수 대기 + 공정 시간(블록은 가공을 차례로 받는다고 보고) + 버퍼.
+        """계약 납기 = 계약 + 착수 대기 + 공정 시간 + 버퍼. 공정 시간은 첫 블록 공정을 그 작업장
+        칸 수로 나눠 차례로 받고, 나머지 블록 공정은 가장 긴 블록만큼 걸린다고 본다.
         4단계에서 수주잔량을 반영한 계산으로 바꾼다."""
-        d = hull.durations
-        n = len(hull.block_ids)
-        work = n * d[self.block_chain[0].id] + sum(d[p.id] for p in self.block_chain[1:])
-        work += sum(d[p.id] for p in self.hull_chain)
+        first, *rest = self.block_chain
+        work = math.ceil(sum(hull.block_durations[first.id]) / self.pools[first.resource].capacity)
+        work += sum(max(hull.block_durations[p.id]) for p in rest)
+        work += sum(hull.durations[p.id] for p in self.hull_chain)
         return hull.contracted + hull.start_lag + work + hull.buffer
 
     def hull_life(self, hull: Hull) -> Generator:
@@ -174,7 +200,7 @@ class Shipyard:
         """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번."""
         pool = self.pools[p.resource]
         resource_id = yield pool.get()
-        duration = hull.durations[p.id]
+        duration = hull.durations[p.id] if block is None else hull.block_durations[p.id][block]
         planned_end = self.clock.date(self.env.now + duration)
 
         if block is None:
