@@ -67,6 +67,25 @@ def check_variability(variability: dict[str, Any], processes: list[dict[str, Any
             raise ParamsError(f"variability.duration.{pid}: cv는 0 이상")
 
 
+def check_noise(noise: dict[str, Any]) -> None:
+    """비율은 0 이상 1 미만, 시간은 0보다 크다. 늦음의 중앙값은 상한보다 작다."""
+    delay = noise["delay"]
+    for name, rate in [
+        ("drop_rate", noise["drop_rate"]),
+        ("duplicate_rate", noise["duplicate_rate"]),
+        ("delay.late_rate", delay["late_rate"]),
+    ]:
+        if not 0 <= rate < 1:
+            raise ParamsError(f"noise.{name}: 0 이상 1 미만")
+    for name in ["median_seconds", "sigma", "late_median_minutes", "late_sigma", "max_hours"]:
+        if not delay[name] > 0:
+            raise ParamsError(f"noise.delay.{name}: 0보다 커야 한다")
+    if not noise["retry_median_seconds"] > 0:
+        raise ParamsError("noise.retry_median_seconds: 0보다 커야 한다")
+    if delay["late_median_minutes"] >= delay["max_hours"] * 60:
+        raise ParamsError("noise.delay: 늦음의 중앙값이 상한보다 크다")
+
+
 def load(params_dir: Path = PARAMS_DIR) -> dict[str, Any]:
     params = {name: _read(params_dir, name) for name in FILES}
     version = params["yard"]["params_version"]
@@ -74,5 +93,6 @@ def load(params_dir: Path = PARAMS_DIR) -> dict[str, Any]:
     if variability["params_version"] != version:
         raise ParamsError(f"{version}.yaml: params_version이 {version}이 아니다")
     check_variability(variability, params["processes"]["processes"])
+    check_noise(variability["noise"])
     params["variability"] = variability
     return params
