@@ -146,6 +146,7 @@ uv run pytest            # 테스트
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
 - [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
 - [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
+- [ADR-009 아웃박스(CDC) 모양 출력](docs/adr/009-outbox-output.md) (제안)
 - [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
 - [ADR-011 자재 발주와 입고 지연](docs/adr/011-material-supply.md)
 
