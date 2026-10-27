@@ -52,6 +52,20 @@ class Hull:
     steel_cut: bool = field(default=False)
 
 
+class Equipment:
+    """작업장 하나 = 설비 하나(ADR-010). 상태가 바뀔 때마다 changed가 울리고 새로 만든다."""
+
+    def __init__(self, env: simpy.Environment, id: str):
+        self.id = id
+        self.up = True
+        self.changed = env.event()
+
+    def set(self, env: simpy.Environment, up: bool) -> None:
+        self.up = up
+        changed, self.changed = self.changed, env.event()
+        changed.succeed()
+
+
 def block_weights(steel_weight_t: float, n: int) -> list[float]:
     """강재 중량을 블록 n개로 나눈다. 평균의 0.6~1.4배로 고르게 퍼뜨리고, 큰 블록과 작은 블록이
     섞여 나오게 순서를 섞는다. 난수는 쓰지 않는다(무게 분포는 3단계에서 params로)."""
@@ -129,7 +143,20 @@ class Shipyard:
         self.orders = params["orders"]
         self.mix = yard["annual_plan"]["mix"]
         self.hull_numbers = HullNumbers(self.clock)
+        # 고정 목록만 받으면 마지막 배를 인도할 때 끝난다. 설비 고장은 끝없이 돌기 때문이다.
+        self.active = 0
+        self.ordering = True
+        self.idle = self.env.event()
         self.env.process(self.order_book())
+
+        # 설비 고장(ADR-010). 고장 시각은 일감과 상관없이 (시드, 설비)마다 따로 뽑는다.
+        self.equipment: dict[str, Equipment] = {}
+        for name, f in params["variability"].get("failures", {}).items():
+            r = yard["resources"][name]
+            for i in range(1, r["count"] + 1):
+                eq = Equipment(self.env, f"{r['prefix']}-{i}")
+                self.equipment[eq.id] = eq
+                self.env.process(self.breakdowns(eq, f))
 
     def _hull(self, order: dict[str, Any]) -> Hull:
         ship = self.ship_types[order["ship_type"]]
@@ -166,8 +193,13 @@ class Shipyard:
         )
 
     def run(self, until: int | None = None) -> None:
-        """until(분) 전까지. None이면 끝까지인데, 포아송 수주가 켜져 있으면 끝이 없다."""
-        self.env.run(until=until)
+        """until(분) 전까지. None이면 받은 배를 모두 인도할 때까지인데, 포아송 수주가 켜져
+        있으면 끝이 없다."""
+        self.env.run(until=self.idle if until is None else until)
+
+    def _check_idle(self) -> None:
+        if not self.ordering and self.active == 0 and not self.idle.triggered:
+            self.idle.succeed()
 
     # 이벤트
 
@@ -175,7 +207,7 @@ class Shipyard:
         self,
         event_type: str,
         entity_key: str,
-        hull: Hull,
+        hull: Hull | None,
         payload: dict[str, Any],
         block_id: str | None = None,
         process: str | None = None,
@@ -195,7 +227,7 @@ class Shipyard:
                 "run_id": self.run_id,
                 "entity_key": entity_key,
                 "seq": self.seq[entity_key],
-                "hull_no": hull.hull_no,
+                "hull_no": None if hull is None else hull.hull_no,
                 "block_id": block_id,
                 "process": process,
                 "resource_id": resource_id,
@@ -208,6 +240,42 @@ class Shipyard:
         한 블록의 시간이 바뀌어도 다른 블록의 시간은 그대로다."""
         factor = lognormal_factor(random.Random(f"{self.seed}:{key}:{process}"), self.cv[process])
         return max(1, round(mean * factor)), factor
+
+    def wait_up(self, resource_id: str) -> Generator:
+        """설비가 고장 중이면 고칠 때까지 기다린다."""
+        eq = self.equipment.get(resource_id)
+        while eq is not None and not eq.up:
+            yield eq.changed
+
+    def busy(self, resource_id: str, minutes: int) -> Generator:
+        """설비에서 minutes분 일한다. 고장 난 동안은 멈추고, 고치면 남은 만큼 이어 한다(ADR-010)."""
+        eq = self.equipment.get(resource_id)
+        if eq is None:
+            yield self.env.timeout(minutes)
+            return
+        while minutes > 0:
+            yield from self.wait_up(resource_id)
+            start = self.env.now
+            yield self.env.timeout(minutes) | eq.changed
+            minutes -= self.env.now - start
+
+    def breakdowns(self, eq: Equipment, f: dict[str, Any]) -> Generator:
+        """고장(지수분포 간격) → 수리(로그정규, 상한) → 다시 고장. 끝없이 돈다."""
+        rng = random.Random(f"{self.seed}:failure:{eq.id}")
+        while True:
+            yield self.env.timeout(max(1, round(rng.expovariate(1 / (f["mtbf_hours"] * 60)))))
+            reason = rng.choice(f["reasons"])
+            repair = rng.lognormvariate(math.log(f["repair_median_hours"] * 60), f["repair_sigma"])
+            repair = max(1, round(min(repair, f["repair_max_hours"] * 60)))
+            eq.set(self.env, up=False)
+            self.equipment_status(eq, "down", reason)
+            yield self.env.timeout(repair)
+            eq.set(self.env, up=True)
+            self.equipment_status(eq, "up", None)
+
+    def equipment_status(self, eq: Equipment, status: str, reason: str | None) -> None:
+        payload = {"status": status, "reason": reason}
+        self.emit("equipment.status_changed", eq.id, None, payload, resource_id=eq.id)
 
     def milestone(self, hull: Hull, name: str) -> None:
         self.emit("hull.milestone_reached", hull.hull_no, hull, {"milestone": name})
@@ -237,6 +305,8 @@ class Shipyard:
             yield self.env.timeout(days(c["day"]) - self.env.now)
             self.contract(c)
         if not arrivals_on(self.orders):
+            self.ordering = False
+            self._check_idle()
             return
         rng = random.Random(f"{self.seed}:orders")
         while True:
@@ -246,6 +316,7 @@ class Shipyard:
 
     def contract(self, c: dict[str, Any]) -> None:
         for order in hulls(self.orders, c, self.env.now, self.hull_numbers):
+            self.active += 1
             self.env.process(self.hull_life(self._hull(order)))
 
     def hull_life(self, hull: Hull) -> Generator:
@@ -268,6 +339,8 @@ class Shipyard:
         for p in self.hull_chain:
             yield from self.work(hull, p)
         self.seq.pop(hull.hull_no)  # 인도한 배는 더 이벤트가 없다. 끝없이 돌려도 상태가 쌓이지 않게
+        self.active -= 1
+        self._check_idle()
 
     def block_life(self, hull: Hull, i: int) -> Generator:
         yield self.env.timeout(hull.block_release[i])
@@ -277,12 +350,14 @@ class Shipyard:
 
     def work(self, hull: Hull, p: Process, block: int | None = None) -> Generator:
         """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번.
-        계획 종료일은 평균 시간으로, 실제 시간은 분포에서 뽑는다. 공수도 같은 배수로 늘고 준다."""
+        계획 종료일은 평균 시간으로, 실제 시간은 분포에서 뽑는다. 공수도 같은 배수로 늘고 준다.
+        작업장이 고장 중이면 고칠 때까지 착수를 기다리고, 하는 중에 고장 나면 멈춘다(ADR-010)."""
         if p.resource in self.docks:
             yield from self.erect(hull, p, self.docks[p.resource])
             return
         pool = self.pools[p.resource]
         resource_id = yield pool.get()
+        yield from self.wait_up(resource_id)
         mean = hull.durations[p.id] if block is None else hull.block_durations[p.id][block]
         planned_end = self.clock.date(self.env.now + mean)
 
@@ -302,7 +377,7 @@ class Shipyard:
         if "start" in p.milestones:
             self.milestone(hull, p.milestones["start"])
 
-        yield self.env.timeout(duration)
+        yield from self.busy(resource_id, duration)
 
         done = {}
         if block is not None:
@@ -315,8 +390,10 @@ class Shipyard:
     def erect(self, hull: Hull, p: Process, docks: DockYard) -> Generator:
         """도크 공정(ADR-003). 계약 때 예약한 도크에 들어간다(ADR-004).
         반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
-        완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다."""
+        완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다.
+        도크 설비가 고장 나면 짓는 일만 멈춘다. 물 채우기는 멈추지 않는다(ADR-010)."""
         dock, position = yield docks.enter(hull.hull_no, hull.dock, hull.dock_position)
+        yield from self.wait_up(dock.id)
         mean = hull.durations[p.id]
         duration, _ = self.draw(hull.hull_no, p.id, mean)
         started = {
@@ -329,10 +406,10 @@ class Shipyard:
 
         if position == HALF:
             half = round(duration * self.half_share)
-            yield self.env.timeout(half)
+            yield from self.busy(dock.id, half)
             yield docks.half_done(dock)
             duration -= half
-        yield self.env.timeout(duration)
+        yield from self.busy(dock.id, duration)
         yield docks.finished(dock)
 
         self.emit("hull.process_completed", hull.hull_no, hull, {}, None, p.id, dock.id)

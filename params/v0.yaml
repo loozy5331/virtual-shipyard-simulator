@@ -26,3 +26,32 @@ noise:
 # 원천이 내는 대사의 기준이다. 대사(받은 것과 맞춰 보기)와 대사할 범위는 플랫폼이 정한다.
 manifest:
   lookback_days: {value: 30, grade: 가정, note: 마감 전 이 기간 안에 이벤트를 보낸 개체만 집계에 넣는다. 원천이 상태를 들고 있는 기간}
+
+# 설비 고장(6단계, ADR-010). 작업장(resource_id) 하나 = 설비 하나로 보고, 고장 나면 그 작업장의 작업이 멈춘다.
+# 고장 간격은 지수분포(평균 mtbf_hours, 달력 시간), 수리 시간은 로그정규(중앙값·σ·상한). 시운전 팀은 사람이라 고장이 없다.
+# reasons에서 고르게 하나를 고장 원인으로 낸다.
+failures:
+  fabrication:
+    mtbf_hours: {value: 200, grade: 가정, note: 절단기·프레스. 공장 하나에 열흘에 한 번꼴}
+    repair_median_hours: {value: 4, grade: 가정}
+    repair_sigma: {value: 1.0, grade: 가정}
+    repair_max_hours: {value: 72, grade: 가정, note: 부품 대기까지 사흘}
+    reasons: [cutting_machine_failure, press_failure, conveyor_failure]
+  assembly:
+    mtbf_hours: {value: 400, grade: 가정, note: 조립장 천장 크레인. 멈추면 조립장 전체가 선다}
+    repair_median_hours: {value: 6, grade: 가정}
+    repair_sigma: {value: 1.0, grade: 가정}
+    repair_max_hours: {value: 72, grade: 가정}
+    reasons: [overhead_crane_failure, welding_power_failure, hydraulic_failure]
+  dock:
+    mtbf_hours: {value: 1000, grade: 가정, note: 골리앗 크레인. 드물지만 길다}
+    repair_median_hours: {value: 12, grade: 가정}
+    repair_sigma: {value: 1.0, grade: 가정}
+    repair_max_hours: {value: 120, grade: 가정}
+    reasons: [goliath_crane_failure, power_failure]
+  berth:
+    mtbf_hours: {value: 600, grade: 가정, note: 안벽 크레인}
+    repair_median_hours: {value: 8, grade: 가정}
+    repair_sigma: {value: 1.0, grade: 가정}
+    repair_max_hours: {value: 72, grade: 가정}
+    reasons: [quay_crane_failure, power_failure]

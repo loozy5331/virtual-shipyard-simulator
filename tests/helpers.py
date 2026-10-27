@@ -2,9 +2,15 @@ from sim import params
 
 
 def fixed(p: dict) -> dict:
-    """소요 시간 흩어짐을 끈다(cv 0). 고정 시간에 기대는 구조 테스트에 쓴다."""
+    """소요 시간 흩어짐(cv 0)과 설비 고장을 끈다. 고정 시간에 기대는 구조 테스트에 쓴다."""
     for d in p["variability"]["duration"].values():
         d["cv"] = 0
+    return no_failures(p)
+
+
+def no_failures(p: dict) -> dict:
+    """설비 고장을 끈다(ADR-010). 고장이 없으면 작업이 멈추지 않는다."""
+    p["variability"]["failures"] = {}
     return p
 
 

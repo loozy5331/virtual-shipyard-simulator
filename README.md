@@ -57,7 +57,7 @@ uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09
 
 - 요청 파일은 한 줄에 `{"entity_key", "seq"}`(`schemas/replay_request.json`). 형식이 틀린 줄이 있으면 아무것도 보내지 않는다
 - 재발행본은 `event_id`·`occurred_at`·payload가 그대로이고 `emitted_at`만 처리 시각이다. 노이즈는 없다
-- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 240개는 `seq` 빈 번호로 181개, 마감 집계로 끝 번호 59개를 찾는다
+- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 278개는 `seq` 빈 번호로 226개, 마감 집계로 끝 번호 52개를 찾는다
 
 ### Kafka로 보내기(ADR-007)
 
@@ -72,34 +72,45 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 - 브로커가 내려가면 버리지 않고 기다린다. 멈췄다 다시 켜면 `--checkpoint`에서 이어 보낸다. 마지막 체크포인트 뒤에 보낸 것은 한 번 더 갈 수 있어(at-least-once) 이어 보낸 시작점을 출력한다
 - 6년치(77,802개)를 보내다 브로커를 내리고 방출기를 강제 종료한 뒤 다시 켜도 토픽에 빠진 메시지가 없다. 사본에는 체크포인트 뒤 66줄이 한 번 더 들어갔다
 
+### 설비 고장(ADR-010)
+
+작업장 하나가 설비 하나다. 가공 공장·조립장·도크·선석이 `params/v0.yaml`의 `failures`(평균 고장 간격, 수리 시간, 원인, 모두 가정)대로 고장 나고, 고장 중에는 그 작업장의 작업이 멈췄다가 고치면 이어 한다. 시운전 팀은 고장 나지 않는다.
+
+```json
+{"event_id":"01a1a1c5-3b60-7017-872d-b75b6c9ff073","event_type":"equipment.status_changed","schema_version":1,"source":"eam","occurred_at":"2026-11-03T23:17:00+09:00","emitted_at":"2026-11-03T23:17:00+09:00","run_id":"v0-s0","entity_key":"ASM-6","seq":1,"hull_no":null,"block_id":null,"process":null,"resource_id":"ASM-6","payload":{"status":"down","reason":"hydraulic_failure"}}
+```
+
+- 고치면 같은 설비의 다음 `seq`로 `status: "up"`, `reason: null`
+- 5년(시드 0) 가용률은 가공 97.0% · 조립장 97.6% · 도크 98.0% · 선석 98.2%
+
 ### 출력 예시
 
 정답 로그의 한 줄(수주). 정답 로그는 `emitted_at` = `occurred_at`이다.
 
 ```json
-{"event_id":"01b1b86d-73e0-7f3b-92c4-a36654734e03","event_type":"order.contracted","schema_version":1,"source":"erp","occurred_at":"2029-01-11T17:37:00+09:00","emitted_at":"2029-01-11T17:37:00+09:00","run_id":"v0-s0","entity_key":"H-2901","seq":1,"hull_no":"H-2901","block_id":null,"process":null,"resource_id":null,"payload":{"ship_type":"vlcc","owner":"동방유조","contract_delivery_date":"2032-04-07","block_count":190}}
+{"event_id":"01b1b86d-73e0-7cb8-89cf-4d7606627c6b","event_type":"order.contracted","schema_version":1,"source":"erp","occurred_at":"2029-01-11T17:37:00+09:00","emitted_at":"2029-01-11T17:37:00+09:00","run_id":"v0-s0","entity_key":"H-2901","seq":1,"hull_no":"H-2901","block_id":null,"process":null,"resource_id":null,"payload":{"ship_type":"vlcc","owner":"동방유조","contract_delivery_date":"2032-04-07","block_count":190}}
 ```
 
-방출 로그 `dt=2028-12-05`에 든 한 줄. 12월 4일 05:29에 끝난 블록 가공이 하루 넘게 늦게 도착했다.
+방출 로그 `dt=2029-01-09`에 든 한 줄. 1월 8일 03:42에 끝난 블록 가공이 하루 넘게 늦게 도착했다.
 
 ```json
-{"event_id":"01b0f221-4ae0-71a5-bde0-550da7e7fbb6","event_type":"block.process_completed","schema_version":1,"source":"mes","occurred_at":"2028-12-04T05:29:00+09:00","emitted_at":"2028-12-05T09:03:14+09:00","run_id":"v0-s0","entity_key":"H-2603-B006","seq":2,"hull_no":"H-2603","block_id":"H-2603-B006","process":"steel_fabrication","resource_id":"FAB-5","payload":{"work_hours":496.9}}
+{"event_id":"01b1a5fd-e8c0-790f-bcab-542b34eac13c","event_type":"block.process_completed","schema_version":1,"source":"mes","occurred_at":"2029-01-08T03:42:00+09:00","emitted_at":"2029-01-09T12:19:31+09:00","run_id":"v0-s0","entity_key":"H-2605-B016","seq":2,"hull_no":"H-2605","block_id":"H-2605-B016","process":"steel_fabrication","resource_id":"FAB-3","payload":{"work_hours":533.8}}
 ```
 
 ### 게이트 확인(11/8): 노이즈가 섞인 이벤트가 쌓인다
 
-위 세 줄을 시드 0, 5년으로 돌린 리포트(각 명령 약 1초):
+위 세 줄을 시드 0, 5년으로 돌린 리포트(세 명령 합쳐 약 10초). 6단계부터 설비 고장 이벤트(5,527개)가 들어 있다:
 
 ```
-정답 49,402개 → 방출 49,701줄
+정답 54,920개 → 방출 55,168줄
 
 노이즈(설정 → 실제)
-- 누락: 0.50% → 0.49% (240개)
-- 중복: 1.00% → 1.09% (539개)
-- 늦음(10분 넘게): 3.00% → 3.05% (1,498개)
-- 순서 어긋남(지연의 결과): 10.95% (5,383개)
+- 누락: 0.50% → 0.51% (278개)
+- 중복: 1.00% → 0.96% (526개)
+- 늦음(10분 넘게): 3.00% → 2.95% (1,614개)
+- 순서 어긋남(지연의 결과): 9.56% (5,225개)
 
-지연(초) p50 5 · p95 37 · p99 11974 · 최대 212679
+지연(초) p50 5 · p95 38 · p99 10725 · 최대 236118
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
@@ -123,6 +134,7 @@ uv run pytest            # 테스트
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
 - [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
 - [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
+- [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
 
 ## 만든 것
 
@@ -143,6 +155,7 @@ uv run pytest            # 테스트
 - 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
 - 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
 - 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
+- 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
 
 ## 브랜치 전략
 

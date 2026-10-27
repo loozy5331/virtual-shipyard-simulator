@@ -1,6 +1,7 @@
 """params/*.yaml 읽기. 숫자는 모두 {value, grade} 꼴이어야 하고, 읽을 때 값만 남긴다.
 
-소요 시간 분포는 params_version 이름의 파일(params/v0.yaml)에서 읽어 variability에 둔다."""
+소요 시간 분포, 노이즈, 마감 집계, 설비 고장은 params_version 이름의 파일(params/v0.yaml)에서
+읽어 variability에 둔다."""
 
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,22 @@ def check_noise(noise: dict[str, Any]) -> None:
         raise ParamsError("noise.delay: 늦음의 중앙값이 상한보다 크다")
 
 
+def check_failures(failures: dict[str, Any], resources: dict[str, Any]) -> None:
+    """고장은 있는 작업장에만, 시간은 0보다 크고 상한은 중앙값 이상, 원인은 하나 이상."""
+    for name, f in failures.items():
+        where = f"failures.{name}"
+        if name not in resources:
+            raise ParamsError(f"{where}: yard.yaml에 없는 작업장")
+        for key in ["mtbf_hours", "repair_median_hours", "repair_sigma", "repair_max_hours"]:
+            if not f[key] > 0:
+                raise ParamsError(f"{where}.{key}: 0보다 커야 한다")
+        if f["repair_max_hours"] < f["repair_median_hours"]:
+            raise ParamsError(f"{where}: 수리 상한이 중앙값보다 작다")
+        reasons = f["reasons"]
+        if not reasons or not all(isinstance(r, str) and r for r in reasons):
+            raise ParamsError(f"{where}.reasons: 고장 원인 문자열이 하나 이상 있어야 한다")
+
+
 def load(params_dir: Path = PARAMS_DIR) -> dict[str, Any]:
     params = {name: _read(params_dir, name) for name in FILES}
     version = params["yard"]["params_version"]
@@ -96,5 +113,6 @@ def load(params_dir: Path = PARAMS_DIR) -> dict[str, Any]:
     check_noise(variability["noise"])
     if not variability["manifest"]["lookback_days"] >= 1:
         raise ParamsError("manifest.lookback_days: 1 이상")
+    check_failures(variability["failures"], params["yard"]["resources"])
     params["variability"] = variability
     return params

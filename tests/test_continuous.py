@@ -12,7 +12,8 @@ YEARS = 8  # 처음 3년은 워밍업(인도 없음), 그 뒤 5년을 본다
 def test_state_is_freed_when_all_delivered():
     yard = Shipyard(fixed_orders(params.load()), seed=0, sink=lambda e: None)
     yard.run()
-    assert yard.seq == {}
+    # 배·블록은 모두 지워지고 설비만 남는다. 설비는 끝이 없지만 수가 정해져 있다(ADR-010).
+    assert set(yard.seq) == set(yard.equipment)
 
 
 def test_memory_stays_flat_over_five_years():
