@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/material.ordered.json",
+  "title": "material.ordered payload",
+  "description": "구매 발주(ADR-011). entity_key는 발주 번호",
+  "type": "object",
+  "properties": {
+    "material": {
+      "enum": [
+        "steel_plate",
+        "main_engine",
+        "outfitting_pipe",
+        "electrical_cable"
+      ],
+      "description": "자재 종류"
+    },
+    "quantity": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "unit": {
+      "enum": [
+        "t",
+        "set"
+      ],
+      "description": "t = 톤, set = 한 척분 묶음"
+    },
+    "supplier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "가상 공급사"
+    },
+    "need_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "계획한 필요일(공정 착수 또는 끝)"
+    },
+    "promised_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "공급사가 약속한 입고일"
+    }
+  },
+  "required": [
+    "material",
+    "quantity",
+    "unit",
+    "supplier",
+    "need_date",
+    "promised_date"
+  ],
+  "additionalProperties": false
+}

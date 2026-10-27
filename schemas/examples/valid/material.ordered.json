@@ -1,0 +1,23 @@
+{
+  "event_id": "0192f3a0-0009-7abc-8def-0123456789ab",
+  "event_type": "material.ordered",
+  "schema_version": 1,
+  "source": "erp",
+  "occurred_at": "2027-06-14T10:05:00+09:00",
+  "emitted_at": "2027-06-14T10:05:00+09:00",
+  "run_id": "v0-42",
+  "entity_key": "PO-2601-05",
+  "seq": 1,
+  "hull_no": "H-2601",
+  "block_id": null,
+  "process": "erection",
+  "resource_id": null,
+  "payload": {
+    "material": "main_engine",
+    "quantity": 1,
+    "unit": "set",
+    "supplier": "서진엔진",
+    "need_date": "2028-07-10",
+    "promised_date": "2028-06-08"
+  }
+}

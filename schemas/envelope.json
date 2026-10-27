@@ -19,6 +19,8 @@
         "hull.process_completed",
         "hull.milestone_reached",
         "equipment.status_changed",
+        "material.ordered",
+        "material.received",
         "system.manifest_published"
       ],
       "description": "대상.동사_과거형"
@@ -326,6 +328,68 @@
           },
           "hull_no": {
             "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "material.ordered"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "const": "erp"
+          },
+          "payload": {
+            "$ref": "payloads/material.ordered.json"
+          },
+          "block_id": {
+            "type": "null"
+          },
+          "process": {
+            "type": "string"
+          },
+          "resource_id": {
+            "type": "null"
+          },
+          "hull_no": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "material.received"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "const": "erp"
+          },
+          "payload": {
+            "$ref": "payloads/material.received.json"
+          },
+          "block_id": {
+            "type": "null"
+          },
+          "process": {
+            "type": "string"
+          },
+          "resource_id": {
+            "type": "null"
+          },
+          "hull_no": {
+            "type": "string"
           }
         }
       }
