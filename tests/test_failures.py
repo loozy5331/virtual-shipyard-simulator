@@ -98,11 +98,15 @@ def test_failure_count_matches_settings(p, years):
 
 
 def test_no_work_starts_or_ends_while_down(years):
+    """탑재 완료(진수)는 뺀다. 짓기를 마친 뒤 주기관 대기(ADR-011)와 물 채우기를 거쳐
+    나오는데, 둘 다 크레인 고장으로 멈추지 않는다(ADR-010 결정 4)."""
     _, events = years
     down = _down_intervals(events)
     checked = 0
     for e in events:
         if not e["event_type"].endswith(("process_started", "process_completed")):
+            continue
+        if e["event_type"] == "hull.process_completed" and e["process"] == "erection":
             continue
         t = _minutes(e["occurred_at"])
         for a, b in down.get(e["resource_id"], []):

@@ -69,7 +69,7 @@ materials:
     lead_days: {value: 60, grade: 가정, note: 후판 주문 → 입고}
     margin_days: {value: 14, grade: 가정}
     early_max_days: {value: 3, grade: 가정}
-    late_rate: {value: 0.2, grade: 가정}
+    late_rate: {value: 0.08, grade: 가정, note: 장기 계약 제철소. 주요 공급사 납기 준수 90% 이상을 관리 목표로 본다}
     late_median_days: {value: 5, grade: 가정}
     late_sigma: {value: 1.0, grade: 가정}
     late_max_days: {value: 45, grade: 가정}
@@ -81,8 +81,8 @@ materials:
     lead_days: {value: 360, grade: 가정, note: 주기관 제작. 진수 전에 기관실에 싣는다}
     margin_days: {value: 30, grade: 가정}
     early_max_days: {value: 7, grade: 가정}
-    late_rate: {value: 0.15, grade: 가정}
-    late_median_days: {value: 14, grade: 가정}
+    late_rate: {value: 0.1, grade: 가정, note: 엔진 제작이 빠듯하다고 보고 다른 자재보다 높게. 공개 자료를 찾으면 출처로}
+    late_median_days: {value: 21, grade: 가정, note: 늦으면 길게}
     late_sigma: {value: 1.0, grade: 가정}
     late_max_days: {value: 120, grade: 가정}
     suppliers: [서진엔진, 대한기관]
@@ -93,7 +93,7 @@ materials:
     lead_days: {value: 120, grade: 가정, note: 배관·밸브 한 척분}
     margin_days: {value: 14, grade: 가정}
     early_max_days: {value: 5, grade: 가정}
-    late_rate: {value: 0.25, grade: 가정}
+    late_rate: {value: 0.12, grade: 가정, note: 품목이 많아 다른 자재보다 조금 높게}
     late_median_days: {value: 7, grade: 가정}
     late_sigma: {value: 1.0, grade: 가정}
     late_max_days: {value: 60, grade: 가정}
@@ -105,7 +105,7 @@ materials:
     lead_days: {value: 90, grade: 가정, note: 전선 한 척분}
     margin_days: {value: 14, grade: 가정}
     early_max_days: {value: 5, grade: 가정}
-    late_rate: {value: 0.2, grade: 가정}
+    late_rate: {value: 0.08, grade: 가정}
     late_median_days: {value: 5, grade: 가정}
     late_sigma: {value: 1.0, grade: 가정}
     late_max_days: {value: 45, grade: 가정}
