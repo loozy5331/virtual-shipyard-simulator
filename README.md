@@ -57,7 +57,7 @@ uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09
 
 - 요청 파일은 한 줄에 `{"entity_key", "seq"}`(`schemas/replay_request.json`). 형식이 틀린 줄이 있으면 아무것도 보내지 않는다
 - 재발행본은 `event_id`·`occurred_at`·payload가 그대로이고 `emitted_at`만 처리 시각이다. 노이즈는 없다
-- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 266개는 `seq` 빈 번호로 199개, 마감 집계로 끝 번호 67개를 찾는다
+- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/contract/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 266개는 `seq` 빈 번호로 199개, 마감 집계로 끝 번호 67개를 찾는다
 
 ### Kafka로 보내기(ADR-007)
 
@@ -139,7 +139,20 @@ docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → e
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
-- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/test_recoverable.py`가 보인다(ADR-008)
+- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/contract/test_recoverable.py`가 보인다(ADR-008)
+
+## 구조
+
+```
+sim/            시뮬레이터: 엔진(engine·dock·planner·orders), 시계·번호, params 읽기, 명령(cli)
+  io/           이벤트 읽기·쓰기, 스키마 검증
+emitter/        방출기: 노이즈, 마감 집계, 체크포인트, Kafka 출력, 노이즈 리포트
+  replay/       재발행(python -m emitter.replay)과 재발행 서비스(python -m emitter.replay.service)
+params/         숫자와 근거 등급(YAML)
+schemas/        이벤트 봉투·payload·재발행 요청 스키마(계약)
+tests/          sim/ · emitter/ · contract/(스키마, 계약으로 누락을 모두 찾는다는 증명)
+docs/           개발 계획, ADR, 출처
+```
 
 ## 개발
 
@@ -181,7 +194,7 @@ uv run pytest            # 테스트
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
 - 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
 - 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
-- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
+- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/contract/test_recoverable.py`
 - 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
 - 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
 - 10단계: 컨테이너와 재발행 요청 디렉터리(ADR-012) — 이미지 하나로 sim·emitter·재발행 서비스, 재발행 서비스는 요청 디렉터리를 살펴 처리하고 `done/`·`failed/`로 옮긴다. 개발용 compose `source` 프로필
