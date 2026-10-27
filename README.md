@@ -57,12 +57,12 @@ uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09
 
 - 요청 파일은 한 줄에 `{"entity_key", "seq"}`(`schemas/replay_request.json`). 형식이 틀린 줄이 있으면 아무것도 보내지 않는다
 - 재발행본은 `event_id`·`occurred_at`·payload가 그대로이고 `emitted_at`만 처리 시각이다. 노이즈는 없다
-- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 266개는 `seq` 빈 번호로 199개, 마감 집계로 끝 번호 67개를 찾는다
+- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/contract/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 266개는 `seq` 빈 번호로 199개, 마감 집계로 끝 번호 67개를 찾는다
 
 ### Kafka로 보내기(ADR-007)
 
 ```bash
-docker compose up -d                 # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
+docker compose up -d redpanda        # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
 uv sync --extra kafka                # confluent-kafka는 선택 의존성
 uv run python -m emitter --sink kafka --checkpoint out/emitter.ckpt --copy-dir out/emitted
 uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
@@ -71,6 +71,19 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 - 토픽 `<source>.events`(예: `mes.events`)와 마감 집계 `<source>.manifest`, 키는 `entity_key`, 값은 봉투 JSON, 메시지 시각은 `emitted_at`
 - 브로커가 내려가면 버리지 않고 기다린다. 멈췄다 다시 켜면 `--checkpoint`에서 이어 보낸다. 마지막 체크포인트 뒤에 보낸 것은 한 번 더 갈 수 있어(at-least-once) 이어 보낸 시작점을 출력한다
 - 6년치(77,802개)를 보내다 브로커를 내리고 방출기를 강제 종료한 뒤 다시 켜도 토픽에 빠진 메시지가 없다. 사본에는 체크포인트 뒤 66줄이 한 번 더 들어갔다
+
+### 컨테이너와 재발행 서비스(ADR-012)
+
+```bash
+docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → emitter · replay, 둘 다 Kafka로
+```
+
+- 이미지 하나(`Dockerfile`)가 `sim`, `emitter --sink kafka`, `emitter.replay.service`를 담고, 명령만 바꾼다. 볼륨은 `/app/out`
+- 재발행 서비스는 요청 디렉터리(`out/requests/`)의 `*.jsonl`을 5초마다 살펴 이름 순서로 재발행하고 `done/`으로 옮긴다. 형식이 틀린 파일은 보내지 않고 `failed/`로 옮기며 까닭을 `<이름>.error`에 쓴다. 다 쓴 파일만 처리하도록 다른 이름(`.tmp`)으로 쓰고 바꿔 넣는다
+- 처리 시각(`emitted_at`)은 방출 로그에서 가장 늦은 도착 시각 + 1초다
+- `--sink kafka`(compose의 기본)면 처음 방출과 같은 토픽·키로 보내고, 브로커 확인 뒤 방출 로그(사본)에 쓰고 요청을 옮긴다. `emitter.replay`에도 같은 옵션이 있다
+- 5년(시드 0) 누락 266개를 요청 하나로 넣으면 토픽에 정답 55,803개가 모두 있다
+- 호스트에서 한 번 돌리기: `uv run python -m emitter.replay.service --once`
 
 ### 설비 고장(ADR-010)
 
@@ -126,7 +139,20 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
-- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/test_recoverable.py`가 보인다(ADR-008)
+- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/contract/test_recoverable.py`가 보인다(ADR-008)
+
+## 구조
+
+```
+sim/            시뮬레이터: 엔진(engine·dock·planner·orders), 시계·번호, params 읽기, 명령(cli)
+  io/           이벤트 읽기·쓰기, 스키마 검증
+emitter/        방출기: 노이즈, 마감 집계, 체크포인트, Kafka 출력, 노이즈 리포트
+  replay/       재발행(python -m emitter.replay)과 재발행 서비스(python -m emitter.replay.service)
+params/         숫자와 근거 등급(YAML)
+schemas/        이벤트 봉투·payload·재발행 요청 스키마(계약)
+tests/          sim/ · emitter/ · contract/(스키마, 계약으로 누락을 모두 찾는다는 증명)
+docs/           개발 계획, ADR, 출처
+```
 
 ## 개발
 
@@ -148,6 +174,7 @@ uv run pytest            # 테스트
 - [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
 - [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
 - [ADR-011 자재 발주와 입고 지연](docs/adr/011-material-supply.md)
+- [ADR-012 컨테이너와 재발행 요청 디렉터리](docs/adr/012-container-and-request-directory.md)
 
 ## 만든 것
 
@@ -167,13 +194,15 @@ uv run pytest            # 테스트
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
 - 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
 - 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
-- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
+- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/contract/test_recoverable.py`
 - 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
 - 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
+- 10단계: 컨테이너와 재발행 요청 디렉터리(ADR-012) — 이미지 하나로 sim·emitter·재발행 서비스, 재발행 서비스는 요청 디렉터리를 살펴 처리하고 `done/`·`failed/`로 옮긴다. 개발용 compose `source` 프로필
+- 11단계: 재발행을 Kafka로(ADR-012) — `emitter.replay`와 재발행 서비스의 `--sink kafka`, 처음 방출과 같은 토픽·키, 브로커 확인 뒤 사본
 
 ## 브랜치 전략
 
 - `main`: 배포/안정 브랜치
 - `develop`: 개발 통합 브랜치. 작업 브랜치는 `develop`에서 분기하여 PR로 병합
 - `develop` 대상 PR은 CI(`test`)가 통과하면 GitHub Actions로 자동 머지, `main` 머지는 수동
-- 버전은 `main`에 `vX.Y.Z` 태그로 관리 (현재 `v0.3.0`)
+- 버전은 `main`에 `vX.Y.Z` 태그로 관리 (현재 `v0.4.0`)

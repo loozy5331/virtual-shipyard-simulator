@@ -9,8 +9,8 @@ import pytest
 
 from sim import params
 from sim.engine import Shipyard, simulate
+from sim.io.schema import validator
 from sim.params import ParamsError, check_materials
-from sim.schema import validator
 from tests.helpers import fixed, single_hull_params
 
 YEARS = 5

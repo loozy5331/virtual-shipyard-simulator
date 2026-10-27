@@ -9,7 +9,7 @@ from emitter.manifest import ManifestPublisher
 from emitter.noise import KST, Emitter
 from sim import params
 from sim.engine import simulate
-from sim.schema import validator
+from sim.io.schema import validator
 from tests.helpers import fixed_orders
 
 NOISE = params.load()["variability"]["noise"]

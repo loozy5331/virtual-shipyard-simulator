@@ -3,7 +3,7 @@ import json
 import pytest
 
 from sim.cli import main
-from sim.writer import PartitionedWriter
+from sim.io.writer import PartitionedWriter
 
 
 def _event(at, n):
