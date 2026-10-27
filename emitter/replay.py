@@ -52,6 +52,16 @@ def read_requests(path: Path) -> list[dict[str, Any]]:
     return requests
 
 
+def write(events: list[Event], out_dir: Path, at: datetime) -> Path:
+    """방출 로그의 dt=<처리 날짜>/part-replay-<처리 시각>.jsonl에 쓴다."""
+    path = out_dir / f"dt={at.date()}" / f"part-replay-{at:%Y%m%dT%H%M%S}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as f:
+        for e in events:
+            f.write(json.dumps(e, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="emitter.replay", description=__doc__.splitlines()[0])
     parser.add_argument("--truth", type=Path, default=Path("out/truth"))
@@ -66,12 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as e:
         parser.error(str(e))
     events, unknown = replay(read_events(args.truth), requests, at.isoformat(timespec="seconds"))
-
-    path = args.out_dir / f"dt={at.date()}" / f"part-replay-{at:%Y%m%dT%H%M%S}.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as f:
-        for e in events:
-            f.write(json.dumps(e, ensure_ascii=False, separators=(",", ":")) + "\n")
+    path = write(events, args.out_dir, at)
     print(f"요청 {len(requests)}개 → 재발행 {len(events)}개 → {path}")
     if unknown:
         print(f"정답에 없는 요청 {len(unknown)}개(보내지 않음)")
