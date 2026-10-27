@@ -57,7 +57,7 @@ uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09
 
 - 요청 파일은 한 줄에 `{"entity_key", "seq"}`(`schemas/replay_request.json`). 형식이 틀린 줄이 있으면 아무것도 보내지 않는다
 - 재발행본은 `event_id`·`occurred_at`·payload가 그대로이고 `emitted_at`만 처리 시각이다. 노이즈는 없다
-- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 278개는 `seq` 빈 번호로 226개, 마감 집계로 끝 번호 52개를 찾는다
+- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 258개는 `seq` 빈 번호로 200개, 마감 집계로 끝 번호 58개를 찾는다
 
 ### Kafka로 보내기(ADR-007)
 
@@ -83,34 +83,46 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 - 고치면 같은 설비의 다음 `seq`로 `status: "up"`, `reason: null`
 - 5년(시드 0) 가용률은 가공 97.0% · 조립장 97.6% · 도크 98.0% · 선석 98.2%
 
+### 자재 발주와 입고(ADR-011)
+
+호선마다 강재(4몫)·주기관·배관·전선을 계획한 필요일에 맞춰 발주하고(출처 erp), 자재별 지연 분포(`params/v0.yaml`의 `materials`, 모두 가정)대로 입고한다. 자재가 들어오기 전에는 그 자재가 필요한 작업(블록 가공 착수, 진수, 안벽 의장 착수)이 기다린다.
+
+```json
+{"event_id":"01ae25c9-80e0-7ef8-9ef3-8dbaf143e3ba","event_type":"material.ordered","schema_version":1,"source":"erp","occurred_at":"2028-07-18T03:05:00+09:00","emitted_at":"2028-07-18T03:05:00+09:00","run_id":"v0-s0","entity_key":"PO-2605-05","seq":1,"hull_no":"H-2605","block_id":null,"process":"erection","resource_id":null,"payload":{"material":"main_engine","quantity":1,"unit":"set","supplier":"대한기관","need_date":"2029-08-12","promised_date":"2029-07-13"}}
+{"event_id":"01b54025-61a0-7110-9501-7beed09d8784","event_type":"material.received","schema_version":1,"source":"erp","occurred_at":"2029-07-06T05:15:00+09:00","emitted_at":"2029-07-06T05:15:00+09:00","run_id":"v0-s0","entity_key":"PO-2605-05","seq":2,"hull_no":"H-2605","block_id":null,"process":"erection","resource_id":null,"payload":{"material":"main_engine","quantity":1,"unit":"set","supplier":"대한기관"}}
+```
+
+- 리드타임 = 같은 발주 번호(`entity_key`)의 입고 − 발주. 5년(시드 0) 중앙값은 강재 58.8일 · 주기관 356.8일 · 배관 117.1일 · 전선 88.2일
+- 대부분의 지연은 발주 여유가 흡수해, 자재를 기다린 작업은 드물다(블록 가공 착수 13번, 안벽 의장 착수 2번)
+
 ### 출력 예시
 
 정답 로그의 한 줄(수주). 정답 로그는 `emitted_at` = `occurred_at`이다.
 
 ```json
-{"event_id":"01b1b86d-73e0-7cb8-89cf-4d7606627c6b","event_type":"order.contracted","schema_version":1,"source":"erp","occurred_at":"2029-01-11T17:37:00+09:00","emitted_at":"2029-01-11T17:37:00+09:00","run_id":"v0-s0","entity_key":"H-2901","seq":1,"hull_no":"H-2901","block_id":null,"process":null,"resource_id":null,"payload":{"ship_type":"vlcc","owner":"동방유조","contract_delivery_date":"2032-04-07","block_count":190}}
+{"event_id":"01b1b86d-73e0-716d-b1bc-61c87e0fbd1c","event_type":"order.contracted","schema_version":1,"source":"erp","occurred_at":"2029-01-11T17:37:00+09:00","emitted_at":"2029-01-11T17:37:00+09:00","run_id":"v0-s0","entity_key":"H-2901","seq":1,"hull_no":"H-2901","block_id":null,"process":null,"resource_id":null,"payload":{"ship_type":"vlcc","owner":"동방유조","contract_delivery_date":"2032-04-07","block_count":190}}
 ```
 
-방출 로그 `dt=2029-01-09`에 든 한 줄. 1월 8일 03:42에 끝난 블록 가공이 하루 넘게 늦게 도착했다.
+방출 로그 `dt=2029-04-12`에 든 한 줄. 4월 11일 11:15에 끝난 블록 조립이 하루 넘게 늦게 도착했다.
 
 ```json
-{"event_id":"01b1a5fd-e8c0-790f-bcab-542b34eac13c","event_type":"block.process_completed","schema_version":1,"source":"mes","occurred_at":"2029-01-08T03:42:00+09:00","emitted_at":"2029-01-09T12:19:31+09:00","run_id":"v0-s0","entity_key":"H-2605-B016","seq":2,"hull_no":"H-2605","block_id":"H-2605-B016","process":"steel_fabrication","resource_id":"FAB-3","payload":{"work_hours":533.8}}
+{"event_id":"01b3868c-10a0-7364-99fc-236e2b302694","event_type":"block.process_completed","schema_version":1,"source":"mes","occurred_at":"2029-04-11T11:15:00+09:00","emitted_at":"2029-04-12T13:36:53+09:00","run_id":"v0-s0","entity_key":"H-2704-B135","seq":4,"hull_no":"H-2704","block_id":"H-2704-B135","process":"block_assembly","resource_id":"ASM-5","payload":{"work_hours":2187.1}}
 ```
 
 ### 게이트 확인(11/8): 노이즈가 섞인 이벤트가 쌓인다
 
-위 세 줄을 시드 0, 5년으로 돌린 리포트(세 명령 합쳐 약 10초). 6단계부터 설비 고장 이벤트(5,527개)가 들어 있다:
+위 세 줄을 시드 0, 5년으로 돌린 리포트(세 명령 합쳐 약 10초). 6·7단계부터 설비 고장 이벤트(5,527개)와 자재 발주·입고 이벤트(894개)가 들어 있다:
 
 ```
-정답 54,920개 → 방출 55,168줄
+정답 55,810개 → 방출 56,157줄
 
 노이즈(설정 → 실제)
-- 누락: 0.50% → 0.51% (278개)
-- 중복: 1.00% → 0.96% (526개)
-- 늦음(10분 넘게): 3.00% → 2.95% (1,614개)
-- 순서 어긋남(지연의 결과): 9.56% (5,225개)
+- 누락: 0.50% → 0.46% (258개)
+- 중복: 1.00% → 1.08% (605개)
+- 늦음(10분 넘게): 3.00% → 3.07% (1,703개)
+- 순서 어긋남(지연의 결과): 9.60% (5,331개)
 
-지연(초) p50 5 · p95 38 · p99 10725 · 최대 236118
+지연(초) p50 5 · p95 39 · p99 11178 · 최대 189453
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
@@ -135,12 +147,13 @@ uv run pytest            # 테스트
 - [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
 - [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
 - [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
+- [ADR-011 자재 발주와 입고 지연](docs/adr/011-material-supply.md)
 
 ## 만든 것
 
 - 0단계: 레포 구조, pytest·ruff CI, CI 통과 뒤 자동 머지
 - 0단계: README 원칙, ADR-001·002
-- 0단계: 이벤트 봉투 스키마(`schemas/envelope.json`)와 이벤트 7종 payload 스키마, 예시 검증 테스트
+- 0단계: 이벤트 봉투 스키마(`schemas/envelope.json`)와 이벤트 7종 payload 스키마, 예시 검증 테스트(7단계까지 10종)
 - 1단계: SimPy 엔진으로 LNG선 한 척(간이 필수 공정 5개, 고정 소요 시간) → `truth.jsonl`. 같은 입력이면 같은 파일, 마일스톤 강재절단 < 착공 < 진수 < 인도
 - 1단계: 선종 3개(LNG선·VLCC·컨테이너선)의 블록 수를 크기에 맞춤(강재 중량 ÷ 블록 평균 무게, 170·190·260개), 블록 작업 시간은 무게에 비례, 조립장 정반 칸
 - 1단계: 블록 착수 계획(한 척의 블록을 약 3개월에 나눠 착수), 가공 속도는 공장 속성 하나로
@@ -156,6 +169,7 @@ uv run pytest            # 테스트
 - 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
 - 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
 - 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
+- 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
 
 ## 브랜치 전략
 

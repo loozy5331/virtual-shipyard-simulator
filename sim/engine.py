@@ -21,7 +21,7 @@ from sim.planner import DockPlan
 Event = dict[str, Any]
 Sink = Callable[[Event], None]
 
-SOURCE = {"order": "erp", "block": "mes", "hull": "mes", "equipment": "eam"}
+SOURCE = {"order": "erp", "material": "erp", "block": "mes", "hull": "mes", "equipment": "eam"}
 
 
 @dataclass
@@ -50,6 +50,10 @@ class Hull:
     dock: int = 0  # 계약할 때 예약한 도크 순번
     dock_position: str = FULL  # 계약할 때 계획한 도크 자리
     steel_cut: bool = field(default=False)
+    # 계약할 때 계획한 배 공정의 (공정, start|end) 시각(분). 자재 필요일을 정한다(ADR-011)
+    planned: dict[tuple[str, str], int] = field(default_factory=dict)
+    # (자재, 몫 번호) → 입고되면 울리는 이벤트
+    materials: dict[tuple[str, int], simpy.Event] = field(default_factory=dict)
 
 
 class Equipment:
@@ -148,6 +152,12 @@ class Shipyard:
         self.ordering = True
         self.idle = self.env.event()
         self.env.process(self.order_book())
+
+        # 자재(ADR-011). (공정, start|end) → 그때 있어야 하는 자재
+        self.materials = params["variability"].get("materials", {})
+        self.needs: dict[tuple[str, str], list[str]] = {}
+        for name, m in self.materials.items():
+            self.needs.setdefault((m["need"]["process"], m["need"]["at"]), []).append(name)
 
         # 설비 고장(ADR-010). 고장 시각은 일감과 상관없이 (시드, 설비)마다 따로 뽑는다.
         self.equipment: dict[str, Equipment] = {}
@@ -295,8 +305,13 @@ class Shipyard:
         hull.start_lag = booking.keel - blocks - hull.contracted
         hull.dock = booking.dock
         hull.dock_position = HALF if booking.half else FULL
-        after_dock = sum(round(hull.durations[p.id] * q[p.id]) for p in self.hull_chain[1:])
-        return booking.launch + after_dock + hull.buffer
+        hull.planned = {(erection, "start"): booking.keel, (erection, "end"): booking.launch}
+        t = booking.launch
+        for p in self.hull_chain[1:]:
+            hull.planned[(p.id, "start")] = t
+            t += round(hull.durations[p.id] * q[p.id])
+            hull.planned[(p.id, "end")] = t
+        return t + hull.buffer
 
     def order_book(self) -> Generator:
         """고정 목록을 계약일마다 받고, 그다음 포아송 도착으로 끝없이 받는다(ADR-004).
@@ -331,6 +346,7 @@ class Shipyard:
                 "block_count": len(hull.block_ids),
             },
         )
+        self.order_materials(hull)
         yield self.env.timeout(hull.start_lag)
 
         blocks = [self.env.process(self.block_life(hull, i)) for i in range(len(hull.block_ids))]
@@ -342,6 +358,64 @@ class Shipyard:
         self.active -= 1
         self._check_idle()
 
+    def order_materials(self, hull: Hull) -> None:
+        """계약할 때 자재마다(블록 자재는 몫마다) 발주 프로세스를 띄운다(ADR-011).
+        발주 번호는 PO-<호선 YYNN>-<01부터>, 자재 순서·몫 순서대로."""
+        n = len(hull.block_ids)
+        k = 0
+        for name, m in self.materials.items():
+            process, at = m["need"]["process"], m["need"]["at"]
+            for lot in range(m["lots"]):
+                k += 1
+                if (process, at) in hull.planned:
+                    need, quantity = hull.planned[(process, at)], 1
+                else:  # 블록 공정: 이 몫의 첫 블록 착수 계획, 수량은 몫의 강재 무게
+                    blocks = [i for i in range(n) if i * m["lots"] // n == lot]
+                    need = hull.contracted + hull.start_lag + hull.block_release[blocks[0]]
+                    quantity = round(sum(hull.weights_t[i] for i in blocks), 1)
+                received = self.env.event()
+                hull.materials[(name, lot)] = received
+                po = f"PO-{hull.hull_no[2:]}-{k:02d}"
+                self.env.process(self.purchase(hull, po, name, need, quantity, received))
+
+    def purchase(
+        self, hull: Hull, po: str, name: str, need: int, quantity: float, received: simpy.Event
+    ) -> Generator:
+        """발주 → 입고. 발주는 필요일 - 약속 리드타임 - 여유(계약보다 이르면 계약할 때).
+        late_rate만큼 약속일보다 늦고(로그정규, 상한), 나머지는 약속일에서 0~early_max_days 일찍.
+        난수는 (시드, 발주 번호)마다 따로다."""
+        m = self.materials[name]
+        rng = random.Random(f"{self.seed}:material:{po}")
+        supplier = rng.choice(m["suppliers"])
+        lead = days(m["lead_days"])
+        yield self.env.timeout(max(0, need - lead - days(m["margin_days"]) - self.env.now))
+        promised = self.env.now + lead
+        if rng.random() < m["late_rate"]:
+            late = rng.lognormvariate(math.log(days(m["late_median_days"])), m["late_sigma"])
+            arrive = promised + round(min(late, days(m["late_max_days"])))
+        else:
+            arrive = promised - round(rng.uniform(0, days(m["early_max_days"])))
+        what = {"material": name, "quantity": quantity, "unit": m["unit"], "supplier": supplier}
+        ordered = {
+            **what,
+            "need_date": self.clock.date(need),
+            "promised_date": self.clock.date(promised),
+        }
+        process = m["need"]["process"]
+        self.emit("material.ordered", po, hull, ordered, process=process)
+        yield self.env.timeout(max(1, arrive - self.env.now))
+        self.emit("material.received", po, hull, what, process=process)
+        self.seq.pop(po)  # 입고한 발주는 더 이벤트가 없다
+        received.succeed()
+
+    def material_ready(self, hull: Hull, process: str, at: str, block: int | None = None):
+        """(공정, start|end)에 필요한 자재가 모두 들어올 때까지 기다린다(ADR-011)."""
+        for name in self.needs.get((process, at), []):
+            lot = (
+                0 if block is None else block * self.materials[name]["lots"] // len(hull.block_ids)
+            )
+            yield hull.materials[(name, lot)]
+
     def block_life(self, hull: Hull, i: int) -> Generator:
         yield self.env.timeout(hull.block_release[i])
         for p in self.block_chain:
@@ -351,10 +425,12 @@ class Shipyard:
     def work(self, hull: Hull, p: Process, block: int | None = None) -> Generator:
         """자원을 받아 공정 하나를 하고 돌려준다. 블록 공정이면 block에 블록 순번.
         계획 종료일은 평균 시간으로, 실제 시간은 분포에서 뽑는다. 공수도 같은 배수로 늘고 준다.
-        작업장이 고장 중이면 고칠 때까지 착수를 기다리고, 하는 중에 고장 나면 멈춘다(ADR-010)."""
+        작업장이 고장 중이면 고칠 때까지 착수를 기다리고, 하는 중에 고장 나면 멈춘다(ADR-010).
+        자재가 아직 없으면 작업장을 받기 전(start)이나 끝내기 전(end)에 기다린다(ADR-011)."""
         if p.resource in self.docks:
             yield from self.erect(hull, p, self.docks[p.resource])
             return
+        yield from self.material_ready(hull, p.id, "start", block)
         pool = self.pools[p.resource]
         resource_id = yield pool.get()
         yield from self.wait_up(resource_id)
@@ -378,6 +454,7 @@ class Shipyard:
             self.milestone(hull, p.milestones["start"])
 
         yield from self.busy(resource_id, duration)
+        yield from self.material_ready(hull, p.id, "end", block)
 
         done = {}
         if block is not None:
@@ -392,6 +469,7 @@ class Shipyard:
         반쪽 자리면 몫을 짓고 물을 채울 때 앞으로 옮겨 나머지를 짓는다.
         완성되면 물을 채워 진수한다. 반쪽 배가 뜰 수 있을 때까지는 진수를 기다린다.
         도크 설비가 고장 나면 짓는 일만 멈춘다. 물 채우기는 멈추지 않는다(ADR-010)."""
+        yield from self.material_ready(hull, p.id, "start")
         dock, position = yield docks.enter(hull.hull_no, hull.dock, hull.dock_position)
         yield from self.wait_up(dock.id)
         mean = hull.durations[p.id]
@@ -410,6 +488,9 @@ class Shipyard:
             yield docks.half_done(dock)
             duration -= half
         yield from self.busy(dock.id, duration)
+        yield from self.material_ready(
+            hull, p.id, "end"
+        )  # 예: 주기관을 싣기 전에는 진수하지 않는다
         yield docks.finished(dock)
 
         self.emit("hull.process_completed", hull.hull_no, hull, {}, None, p.id, dock.id)

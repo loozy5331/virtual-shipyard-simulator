@@ -2,10 +2,11 @@ from sim import params
 
 
 def fixed(p: dict) -> dict:
-    """소요 시간 흩어짐(cv 0)과 설비 고장을 끈다. 고정 시간에 기대는 구조 테스트에 쓴다."""
+    """소요 시간 흩어짐(cv 0), 설비 고장, 자재 지연을 끈다.
+    고정 시간에 기대는 구조 테스트에 쓴다."""
     for d in p["variability"]["duration"].values():
         d["cv"] = 0
-    return no_failures(p)
+    return on_time_materials(no_failures(p))
 
 
 def no_failures(p: dict) -> dict:
@@ -26,3 +27,12 @@ def single_hull_params(ship_type: str = "lng_carrier", vary: bool = False) -> di
     p = fixed_orders(params.load())
     p["orders"]["contracts"] = [{"day": 0, "ship_type": ship_type, "owner": "남해해운", "count": 1}]
     return p if vary else fixed(p)
+
+
+def on_time_materials(p: dict) -> dict:
+    """자재가 모두 약속일에 온다(ADR-011). 여유(margin) 덕에 필요일 전에 들어와
+    작업을 늦추지 않는다."""
+    for m in p["variability"]["materials"].values():
+        m["late_rate"] = 0
+        m["early_max_days"] = 0
+    return p

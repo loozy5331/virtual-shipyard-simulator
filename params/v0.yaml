@@ -55,3 +55,58 @@ failures:
     repair_sigma: {value: 1.0, grade: 가정}
     repair_max_hours: {value: 72, grade: 가정}
     reasons: [quay_crane_failure, power_failure]
+
+# 자재 발주·입고(7단계, ADR-011). 호선마다 자재를 발주하고, 받기 전에는 그 자재가 필요한 공정을 시작(또는 끝)하지 못한다.
+# need: 필요한 공정과 시점(start = 착수 전, end = 끝내기 전). lots: 블록 공정이면 블록을 나눠 받는 횟수.
+# 발주 = 계획한 필요일 - lead_days(약속 리드타임) - margin_days(여유). 계약보다 이르면 계약할 때 발주한다.
+# 입고: late_rate만큼 늦고(약속일 + 로그정규 지연, 상한), 나머지는 약속일에서 0~early_max_days 일찍 온다.
+# suppliers는 가상 공급사, 발주마다 고르게 하나.
+materials:
+  steel_plate:
+    need: {process: steel_fabrication, at: start}
+    lots: {value: 4, grade: 가정, note: 블록 착수 계획(약 3개월)을 넷으로 나눠 받는다}
+    unit: t
+    lead_days: {value: 60, grade: 가정, note: 후판 주문 → 입고}
+    margin_days: {value: 14, grade: 가정}
+    early_max_days: {value: 3, grade: 가정}
+    late_rate: {value: 0.2, grade: 가정}
+    late_median_days: {value: 5, grade: 가정}
+    late_sigma: {value: 1.0, grade: 가정}
+    late_max_days: {value: 45, grade: 가정}
+    suppliers: [한빛제철, 동해강업, 서남철강]
+  main_engine:
+    need: {process: erection, at: end}
+    lots: {value: 1, grade: 가정}
+    unit: set
+    lead_days: {value: 360, grade: 가정, note: 주기관 제작. 진수 전에 기관실에 싣는다}
+    margin_days: {value: 30, grade: 가정}
+    early_max_days: {value: 7, grade: 가정}
+    late_rate: {value: 0.15, grade: 가정}
+    late_median_days: {value: 14, grade: 가정}
+    late_sigma: {value: 1.0, grade: 가정}
+    late_max_days: {value: 120, grade: 가정}
+    suppliers: [서진엔진, 대한기관]
+  outfitting_pipe:
+    need: {process: quay_outfitting, at: start}
+    lots: {value: 1, grade: 가정}
+    unit: set
+    lead_days: {value: 120, grade: 가정, note: 배관·밸브 한 척분}
+    margin_days: {value: 14, grade: 가정}
+    early_max_days: {value: 5, grade: 가정}
+    late_rate: {value: 0.25, grade: 가정}
+    late_median_days: {value: 7, grade: 가정}
+    late_sigma: {value: 1.0, grade: 가정}
+    late_max_days: {value: 60, grade: 가정}
+    suppliers: [바다배관, 남도밸브]
+  electrical_cable:
+    need: {process: quay_outfitting, at: start}
+    lots: {value: 1, grade: 가정}
+    unit: set
+    lead_days: {value: 90, grade: 가정, note: 전선 한 척분}
+    margin_days: {value: 14, grade: 가정}
+    early_max_days: {value: 5, grade: 가정}
+    late_rate: {value: 0.2, grade: 가정}
+    late_median_days: {value: 5, grade: 가정}
+    late_sigma: {value: 1.0, grade: 가정}
+    late_max_days: {value: 45, grade: 가정}
+    suppliers: [한결전선, 동방케이블]
