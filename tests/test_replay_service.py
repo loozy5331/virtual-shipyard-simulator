@@ -1,12 +1,24 @@
-"""재발행 서비스(ADR-012): 요청 디렉터리를 살펴 재발행하고, 처리한 파일은 옮긴다."""
+"""재발행 서비스(ADR-012): 요청 디렉터리를 살펴 재발행하고, 처리한 파일은 옮긴다.
+--sink kafka(11단계)는 가짜 프로듀서로 확인한다."""
 
 import json
 
+import pytest
+
+from emitter.kafka import KafkaSink
 from emitter.replay_service import clock, main, scan
+from tests.test_kafka import FakeProducer
 
 
 def _e(key, seq, emitted_at="2029-06-01T08:00:00+09:00"):
-    return {"event_id": f"{key}-{seq}", "entity_key": key, "seq": seq, "emitted_at": emitted_at}
+    return {
+        "event_id": f"{key}-{seq}",
+        "event_type": "block.process_completed",
+        "source": "mes",
+        "entity_key": key,
+        "seq": seq,
+        "emitted_at": emitted_at,
+    }
 
 
 def _jsonl(path, rows, tail=""):
@@ -83,3 +95,25 @@ def test_cli_once(tmp_path, capsys):
     assert main([*args, "--once"]) == 0
     assert "r1.jsonl: 요청 1개 → 재발행 1개" in capsys.readouterr().out
     assert (requests / "done" / "r1.jsonl").exists()
+
+
+def test_kafka_sends_to_same_topic_and_key_then_writes_copy(tmp_path):
+    truth, emitted, requests = _dirs(tmp_path)
+    _jsonl(requests / "r1.jsonl", [{"entity_key": "A", "seq": 2}])
+    fake = FakeProducer()
+    assert scan(requests, truth, emitted, KafkaSink(producer=fake)) == 1
+    [(topic, key, value, ms)] = fake.sent
+    replayed = {**_e("A", 2), "emitted_at": "2029-06-01T08:00:01+09:00"}
+    assert (topic, key, json.loads(value)) == ("mes.events", b"A", replayed)
+    assert ms == 1874962801000  # 2029-05-31T23:00:01Z
+    assert _replayed(emitted) == [replayed]
+    assert (requests / "done" / "r1.jsonl").exists()
+
+
+def test_kafka_failure_keeps_request_and_writes_nothing(tmp_path):
+    truth, emitted, requests = _dirs(tmp_path)
+    _jsonl(requests / "r1.jsonl", [{"entity_key": "A", "seq": 2}])
+    with pytest.raises(RuntimeError, match="Kafka 전달 실패"):
+        scan(requests, truth, emitted, KafkaSink(producer=FakeProducer(error="denied")))
+    assert _replayed(emitted) == []
+    assert (requests / "r1.jsonl").exists()
