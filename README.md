@@ -62,7 +62,7 @@ uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09
 ### Kafka로 보내기(ADR-007)
 
 ```bash
-docker compose up -d                 # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
+docker compose up -d redpanda        # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
 uv sync --extra kafka                # confluent-kafka는 선택 의존성
 uv run python -m emitter --sink kafka --checkpoint out/emitter.ckpt --copy-dir out/emitted
 uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
@@ -71,6 +71,17 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 - 토픽 `<source>.events`(예: `mes.events`)와 마감 집계 `<source>.manifest`, 키는 `entity_key`, 값은 봉투 JSON, 메시지 시각은 `emitted_at`
 - 브로커가 내려가면 버리지 않고 기다린다. 멈췄다 다시 켜면 `--checkpoint`에서 이어 보낸다. 마지막 체크포인트 뒤에 보낸 것은 한 번 더 갈 수 있어(at-least-once) 이어 보낸 시작점을 출력한다
 - 6년치(77,802개)를 보내다 브로커를 내리고 방출기를 강제 종료한 뒤 다시 켜도 토픽에 빠진 메시지가 없다. 사본에는 체크포인트 뒤 66줄이 한 번 더 들어갔다
+
+### 컨테이너와 재발행 서비스(ADR-012)
+
+```bash
+docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → emitter(Kafka) · replay
+```
+
+- 이미지 하나(`Dockerfile`)가 `sim`, `emitter --sink kafka`, `emitter.replay_service`를 담고, 명령만 바꾼다. 볼륨은 `/app/out`
+- 재발행 서비스는 요청 디렉터리(`out/requests/`)의 `*.jsonl`을 5초마다 살펴 이름 순서로 재발행하고 `done/`으로 옮긴다. 형식이 틀린 파일은 보내지 않고 `failed/`로 옮기며 까닭을 `<이름>.error`에 쓴다. 다 쓴 파일만 처리하도록 다른 이름(`.tmp`)으로 쓰고 바꿔 넣는다
+- 처리 시각(`emitted_at`)은 방출 로그에서 가장 늦은 도착 시각 + 1초다. 재발행은 아직 파일로 나간다(Kafka는 11단계)
+- 호스트에서 한 번 돌리기: `uv run python -m emitter.replay_service --once`
 
 ### 설비 고장(ADR-010)
 
@@ -148,6 +159,7 @@ uv run pytest            # 테스트
 - [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
 - [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
 - [ADR-011 자재 발주와 입고 지연](docs/adr/011-material-supply.md)
+- [ADR-012 컨테이너와 재발행 요청 디렉터리](docs/adr/012-container-and-request-directory.md)
 
 ## 만든 것
 
@@ -170,6 +182,7 @@ uv run pytest            # 테스트
 - 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
 - 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
 - 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
+- 10단계: 컨테이너와 재발행 요청 디렉터리(ADR-012) — 이미지 하나로 sim·emitter·재발행 서비스, 재발행 서비스는 요청 디렉터리를 살펴 처리하고 `done/`·`failed/`로 옮긴다. 개발용 compose `source` 프로필
 
 ## 브랜치 전략
 
