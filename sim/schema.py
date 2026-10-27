@@ -23,3 +23,11 @@ def validator() -> Draft202012Validator:
     )
     Draft202012Validator.check_schema(envelope)
     return Draft202012Validator(envelope, registry=registry)
+
+
+@cache
+def request_validator() -> Draft202012Validator:
+    """재발행 요청 한 줄의 검증기(ADR-008)."""
+    schema = _load(SCHEMAS_DIR / "replay_request.json")
+    Draft202012Validator.check_schema(schema)
+    return Draft202012Validator(schema)
