@@ -44,19 +44,33 @@ uv run python -m emitter.report                          # 노이즈 리포트(-
 
 - `sim`: `--forever`면 멈출 때까지, `--out FILE`이면 파일 하나. 시작부터 약 3년은 인도가 없는 워밍업이다(ADR-004)
 - `emitter`: `--seed`는 노이즈 시드(시뮬레이션 시드와 따로). 같은 정답 로그로 노이즈만 바꿔 여러 번 만들 수 있다(ADR-005)
+- 경계(ADR-007): `out/truth`는 원천의 기록이라 시뮬레이터가 보존한다. `out/emitted`는 플랫폼의 착륙 구역이다. 시뮬레이터는 쓰기만 하고, 보존·정리·수집 위치는 플랫폼이 관리한다
 - `uv run python -m sim.periods --seeds 20`: 구간 평균 ≈ 마일스톤 기간표인지
 
-### 누락 찾기와 재발행(ADR-006)
+### 누락 찾기와 재발행(ADR-006·008)
 
-방출기는 출처 시스템마다 하루 한 번 대사 이벤트(`system.reconciled`, 보낸 개체별 마지막 `seq`)를 낸다. 대사 범위는 마감 전 `lookback_days`(`params/v0.yaml`, 가정 30일) 안에 이벤트가 있었던 개체뿐이다.
+원천(방출기)은 출처 시스템마다 하루 한 번 마감 집계(`system.manifest_published`, 보낸 개체별 마지막 `seq`)를 낸다. 집계 범위는 마감 전 `lookback_days`(`params/v0.yaml`, 가정 30일) 안에 이벤트를 보낸 개체뿐이다. 받은 것과 집계를 맞춰 보는 대사와 재발행 요청은 플랫폼이 한다.
 
 ```bash
-uv run python -m emitter.report --requests out/requests.jsonl                  # 찾은 누락 → 재발행 요청
-uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09:00:00   # 재발행
-uv run python -m emitter.report                                                # 누락 0개
+uv run python -m emitter.replay --requests out/requests.jsonl --at 2031-11-02T09:00:00   # 플랫폼이 만든 요청으로 재발행
 ```
 
-5년 실행(시드 0): 누락 240개를 `seq` 빈 번호(181개)와 대사(끝 번호 59개)로 모두 찾고, 재발행 뒤 누락이 0개가 된다. 재발행본은 `emitted_at`이 처리 시각이라 리포트의 늦음·지연 최대값이 커진다.
+- 요청 파일은 한 줄에 `{"entity_key", "seq"}`(`schemas/replay_request.json`). 형식이 틀린 줄이 있으면 아무것도 보내지 않는다
+- 재발행본은 `event_id`·`occurred_at`·payload가 그대로이고 `emitted_at`만 처리 시각이다. 노이즈는 없다
+- 계약(`seq` + 마감 집계)만으로 누락을 모두 찾을 수 있다는 것은 `tests/test_recoverable.py`가 보인다. 5년 실행(시드 0)의 누락 240개는 `seq` 빈 번호로 181개, 마감 집계로 끝 번호 59개를 찾는다
+
+### Kafka로 보내기(ADR-007)
+
+```bash
+docker compose up -d                 # 개발용 Redpanda(localhost:9092), 토픽 자동 생성
+uv sync --extra kafka                # confluent-kafka는 선택 의존성
+uv run python -m emitter --sink kafka --checkpoint out/emitter.ckpt --copy-dir out/emitted
+uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
+```
+
+- 토픽 `<source>.events`(예: `mes.events`)와 마감 집계 `<source>.manifest`, 키는 `entity_key`, 값은 봉투 JSON, 메시지 시각은 `emitted_at`
+- 브로커가 내려가면 버리지 않고 기다린다. 멈췄다 다시 켜면 `--checkpoint`에서 이어 보낸다. 마지막 체크포인트 뒤에 보낸 것은 한 번 더 갈 수 있어(at-least-once) 이어 보낸 시작점을 출력한다
+- 6년치(77,802개)를 보내다 브로커를 내리고 방출기를 강제 종료한 뒤 다시 켜도 토픽에 빠진 메시지가 없다. 사본에는 체크포인트 뒤 66줄이 한 번 더 들어갔다
 
 ### 출력 예시
 
@@ -86,14 +100,10 @@ uv run python -m emitter.report                                                #
 - 순서 어긋남(지연의 결과): 10.95% (5,383개)
 
 지연(초) p50 5 · p95 37 · p99 11974 · 최대 212679
-
-방출 로그만으로 찾기
-- 중복: event_id로 539개 / 실제 539개 모두 찾음
-- 누락: seq 빈 번호로 181개 + 개체의 마지막 번호라 못 찾음 59개 / 실제 240개 맞음
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
-- 중복은 `event_id`로 모두 찾는다. 누락은 `seq` 빈 번호로 찾고, 개체의 마지막 이벤트가 빠진 것은 뒤 번호가 없어 방출 로그만으로는 알 수 없다. 이것까지 더하면 실제 누락 수와 맞는다
+- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/test_recoverable.py`가 보인다(ADR-008)
 
 ## 개발
 
@@ -111,6 +121,8 @@ uv run pytest            # 테스트
 - [ADR-004 수주와 납기, 끝없는 실행](docs/adr/004-orders-and-endless-run.md)
 - [ADR-005 방출기와 노이즈](docs/adr/005-emitter-noise.md)
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
+- [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
+- [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
 
 ## 만든 것
 
@@ -128,11 +140,13 @@ uv run pytest            # 테스트
 - 3단계: 공정 소요 시간을 로그정규 분포(`params/v0.yaml`, cv 가정값)에서 뽑는다. 같은 시드면 같은 로그, 다른 시드면 다른 로그. 시드 20개의 구간 평균이 기간표의 ±8% 안
 - 4단계: 끝없는 실행(ADR-004) — 첫해 고정 목록 다음 포아송 수주, 계약 때 도크 자리를 예약해 착수일·납기를 정한다(공정 시간 80% 분위수), `--until`(기본 5년)·`--forever`, 날짜별 파일 `out/truth/dt=YYYY-MM-DD/part-0.jsonl`. 끝난 블록·배의 상태를 지워 몇 년을 돌려도 메모리가 일정(15년 7.5~10MB)
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
-- 게이트 뒤: 재발행과 대사(ADR-006) — 하루 한 번 대사 이벤트(최근 `lookback_days` 안의 개체만), 리포트가 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
+- 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
+- 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
+- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
 
 ## 브랜치 전략
 
 - `main`: 배포/안정 브랜치
 - `develop`: 개발 통합 브랜치. 작업 브랜치는 `develop`에서 분기하여 PR로 병합
 - `develop` 대상 PR은 CI(`test`)가 통과하면 GitHub Actions로 자동 머지, `main` 머지는 수동
-- 버전은 `main`에 `vX.Y.Z` 태그로 관리 (현재 `v0.0.1`)
+- 버전은 `main`에 `vX.Y.Z` 태그로 관리 (현재 `v0.2.0`)

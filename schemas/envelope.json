@@ -19,7 +19,7 @@
         "hull.process_completed",
         "hull.milestone_reached",
         "equipment.status_changed",
-        "system.reconciled"
+        "system.manifest_published"
       ],
       "description": "대상.동사_과거형"
     },
@@ -334,14 +334,14 @@
       "if": {
         "properties": {
           "event_type": {
-            "const": "system.reconciled"
+            "const": "system.manifest_published"
           }
         }
       },
       "then": {
         "properties": {
           "payload": {
-            "$ref": "payloads/system.reconciled.json"
+            "$ref": "payloads/system.manifest_published.json"
           },
           "hull_no": {
             "type": "null"

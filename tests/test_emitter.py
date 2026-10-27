@@ -117,7 +117,9 @@ def test_cli_truth_dir_to_emitted_dir(tmp_path):
     sim_main(["--seed", "0", "--until", "2029-06-01", "--out-dir", str(truth_dir)])
     emit_main(["--truth", str(truth_dir), "--seed", "0", "--out-dir", str(emitted_dir)])
     truth = list(read_events(truth_dir))
-    emitted = [e for e in read_events(emitted_dir) if e["event_type"] != "system.reconciled"]
+    emitted = [
+        e for e in read_events(emitted_dir) if e["event_type"] != "system.manifest_published"
+    ]
     assert {e["event_id"] for e in emitted} <= {e["event_id"] for e in truth}
     assert 0.9 * len(truth) < len(emitted) < 1.1 * len(truth)
     for part in emitted_dir.glob("dt=*/part-0.jsonl"):
