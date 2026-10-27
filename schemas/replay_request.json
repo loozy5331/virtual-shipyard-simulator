@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/replay_request.json",
+  "title": "재발행 요청",
+  "description": "플랫폼이 원천에 보내는 재발행 요청 한 줄(JSONL). 개체의 seq 번호 하나를 다시 보내 달라는 뜻(ADR-006·008)",
+  "type": "object",
+  "properties": {
+    "entity_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "entity_key",
+    "seq"
+  ],
+  "additionalProperties": false
+}
