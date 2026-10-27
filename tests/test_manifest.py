@@ -41,7 +41,7 @@ def test_daily_per_source_at_midnight(emitted):
     manifests = _manifests(emitted)
     v = validator()
     assert manifests and all(v.is_valid(e) for e in manifests)
-    assert {e["source"] for e in manifests} == {"erp", "mes"}
+    assert {e["source"] for e in manifests} == {"erp", "mes", "eam"}  # eam: 설비 고장(ADR-010)
     for e in manifests:
         assert e["occurred_at"].endswith("T00:00:00+09:00")
         assert e["emitted_at"] == e["occurred_at"]

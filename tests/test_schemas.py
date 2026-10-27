@@ -16,6 +16,8 @@ EVENT_TYPES = [
     "hull.process_completed",
     "hull.milestone_reached",
     "equipment.status_changed",
+    "material.ordered",
+    "material.received",
     "system.manifest_published",
 ]
 

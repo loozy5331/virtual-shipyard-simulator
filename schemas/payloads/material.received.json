@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loozy5331/virtual-shipyard-simulator/schemas/payloads/material.received.json",
+  "title": "material.received payload",
+  "description": "입고(ADR-011). 같은 발주 번호의 다음 seq. 리드타임 = 입고 occurred_at - 발주 occurred_at",
+  "type": "object",
+  "properties": {
+    "material": {
+      "enum": [
+        "steel_plate",
+        "main_engine",
+        "outfitting_pipe",
+        "electrical_cable"
+      ],
+      "description": "자재 종류"
+    },
+    "quantity": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "unit": {
+      "enum": [
+        "t",
+        "set"
+      ],
+      "description": "t = 톤, set = 한 척분 묶음"
+    },
+    "supplier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "가상 공급사"
+    }
+  },
+  "required": [
+    "material",
+    "quantity",
+    "unit",
+    "supplier"
+  ],
+  "additionalProperties": false
+}
