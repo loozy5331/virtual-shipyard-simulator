@@ -20,7 +20,7 @@ from pathlib import Path
 
 from emitter.noise import KST
 from emitter.replay import add_sink_args, kafka_sink, publish, read_requests, replay
-from sim.reader import read_events
+from sim.io.reader import read_events
 
 DONE, FAILED = "done", "failed"
 

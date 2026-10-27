@@ -14,7 +14,7 @@ from statistics import quantiles
 from typing import Any
 
 from sim import params
-from sim.reader import read_events
+from sim.io.reader import read_events
 
 LATE_SECONDS = 600  # 이보다 늦게 도착하면 "늦음"으로 센다
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from emitter.checkpoint import run
 from emitter.noise import Emitter
 from sim import params
-from sim.writer import JsonlWriter, PartitionedWriter
+from sim.io.writer import JsonlWriter, PartitionedWriter
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from emitter.noise import KST
-from sim.reader import read_events
-from sim.schema import request_validator
+from sim.io.reader import read_events
+from sim.io.schema import request_validator
 
 Event = dict[str, Any]
 

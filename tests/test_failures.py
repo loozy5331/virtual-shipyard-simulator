@@ -8,8 +8,8 @@ import pytest
 
 from sim import params
 from sim.engine import Shipyard, simulate
+from sim.io.schema import validator
 from sim.params import ParamsError, check_failures
-from sim.schema import validator
 from tests.helpers import fixed, no_failures, single_hull_params
 
 YEARS = 5

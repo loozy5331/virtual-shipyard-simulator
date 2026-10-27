@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sim.schema import request_validator, validator
+from sim.io.schema import request_validator, validator
 
 SCHEMAS = Path(__file__).resolve().parent.parent / "schemas"
 VALID = sorted((SCHEMAS / "examples" / "valid").glob("*.json"))
