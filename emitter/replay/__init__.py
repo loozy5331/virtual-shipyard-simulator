@@ -108,6 +108,3 @@ def main(argv: list[str] | None = None) -> int:
         print(f"정답에 없는 요청 {len(unknown)}개(보내지 않음)")
     return 0
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())

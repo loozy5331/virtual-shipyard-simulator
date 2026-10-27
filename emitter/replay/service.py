@@ -1,4 +1,4 @@
-"""재발행 서비스: python -m emitter.replay_service --requests-dir requests [--sink kafka] [--once]
+"""재발행 서비스: python -m emitter.replay.service --requests-dir requests [--sink kafka] [--once]
 
 플랫폼이 요청 디렉터리에 둔 요청 파일(*.jsonl, schemas/replay_request.json)을 살펴 이름 순서로
 하나씩 재발행한다(ADR-012). 처리한 파일은 done/으로 옮긴다. 형식이 틀려 아무것도 보내지 않은
@@ -79,7 +79,7 @@ def scan(requests_dir: Path, truth: Path, emitted: Path, kafka=None, stop=lambda
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="emitter.replay_service", description=__doc__.splitlines()[0]
+        prog="emitter.replay.service", description=__doc__.splitlines()[0]
     )
     parser.add_argument("--requests-dir", type=Path, default=Path("out/requests"))
     parser.add_argument("--truth", type=Path, default=Path("out/truth"))

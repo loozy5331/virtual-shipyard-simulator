@@ -11,8 +11,8 @@
 
 ## 결정
 
-1. **이미지 하나, 명령 셋**: `Dockerfile` 하나가 `sim`, `emitter`(`--sink kafka`), `emitter.replay_service`를 모두 담는다. 코드와 `params/`·`schemas/`가 같아 이미지를 나눌 까닭이 없다. 선택 의존성 `kafka`를 넣고, 작업 디렉터리 `/app`의 `out/`에 쓴다(볼륨은 `/app/out`).
-2. **재발행 서비스**(`python -m emitter.replay_service`): 요청 디렉터리를 `--interval`(기본 5초)마다 살펴 `*.jsonl`을 이름 순서로 하나씩 처리한다.
+1. **이미지 하나, 명령 셋**: `Dockerfile` 하나가 `sim`, `emitter`(`--sink kafka`), `emitter.replay.service`를 모두 담는다. 코드와 `params/`·`schemas/`가 같아 이미지를 나눌 까닭이 없다. 선택 의존성 `kafka`를 넣고, 작업 디렉터리 `/app`의 `out/`에 쓴다(볼륨은 `/app/out`).
+2. **재발행 서비스**(`python -m emitter.replay.service`): 요청 디렉터리를 `--interval`(기본 5초)마다 살펴 `*.jsonl`을 이름 순서로 하나씩 처리한다.
    - 처리한 파일은 `done/`으로 옮긴다. 정답에 없는 요청은 보내지 않고 로그에만 남긴다(ADR-006).
    - 형식이 틀린 파일은 아무것도 보내지 않고(ADR-008 결정 2) `failed/`로 옮기며, 까닭(줄 번호)을 `failed/<이름>.error`에 쓴다.
    - 다 쓴 파일만 처리하도록, 플랫폼은 다른 이름(`.tmp` 등)으로 쓰고 `*.jsonl`로 바꿔 넣는다. 이름은 플랫폼이 겹치지 않게 짓는다(같은 이름이면 `done/`의 앞 파일을 덮는다).

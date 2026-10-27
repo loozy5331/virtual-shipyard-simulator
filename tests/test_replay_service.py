@@ -6,7 +6,7 @@ import json
 import pytest
 
 from emitter.kafka import KafkaSink
-from emitter.replay_service import clock, main, scan
+from emitter.replay.service import clock, main, scan
 from tests.test_kafka import FakeProducer
 
 
