@@ -1,6 +1,7 @@
 """재발행: python -m emitter.replay --requests out/requests.jsonl --at 2031-11-03T09:00:00
 
-재발행 요청(한 줄에 {"entity_key", "seq"})을 정답 로그에서 찾아 다시 보낸다(ADR-006).
+재발행 요청(한 줄에 {"entity_key", "seq"}, schemas/replay_request.json)을 정답 로그에서 찾아
+다시 보낸다(ADR-006). 요청은 플랫폼이 만든다(ADR-008). 형식이 틀린 줄이 있으면 보내지 않는다.
 event_id·occurred_at·payload는 그대로, emitted_at만 처리 시각(--at, +09:00)이다. 노이즈는 없다.
 출력은 방출 로그의 dt=<처리 날짜>/part-replay-<처리 시각>.jsonl이라 방출 로그와 함께 읽힌다.
 """
@@ -14,6 +15,7 @@ from typing import Any
 
 from emitter.noise import KST
 from sim.reader import read_events
+from sim.schema import request_validator
 
 Event = dict[str, Any]
 
@@ -33,6 +35,23 @@ def replay(
     return out, unknown
 
 
+def read_requests(path: Path) -> list[dict[str, Any]]:
+    """요청 파일을 읽어 스키마로 검증한다. 틀린 줄이 있으면 줄 번호와 함께 ValueError."""
+    requests = []
+    with path.open(encoding="utf-8") as lines:
+        for n, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}:{n}: JSON이 아니다: {e}") from e
+            if errors := [e.message for e in request_validator().iter_errors(r)]:
+                raise ValueError(f"{path}:{n}: 재발행 요청 형식이 아니다: {'; '.join(errors)}")
+            requests.append(r)
+    return requests
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="emitter.replay", description=__doc__.splitlines()[0])
     parser.add_argument("--truth", type=Path, default=Path("out/truth"))
@@ -42,8 +61,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     at = datetime.fromisoformat(args.at).replace(tzinfo=KST)
-    with args.requests.open(encoding="utf-8") as lines:
-        requests = [json.loads(line) for line in lines if line.strip()]
+    try:
+        requests = read_requests(args.requests)
+    except ValueError as e:
+        parser.error(str(e))
     events, unknown = replay(read_events(args.truth), requests, at.isoformat(timespec="seconds"))
 
     path = args.out_dir / f"dt={at.date()}" / f"part-replay-{at:%Y%m%dT%H%M%S}.jsonl"

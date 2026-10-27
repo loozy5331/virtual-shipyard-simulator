@@ -1,14 +1,10 @@
-"""재발행(ADR-006): 리포트가 찾은 누락을 요청하면 정답에서 찾아 다시 보내고, 누락이 0이 된다."""
+"""재발행(ADR-006): 요청을 정답에서 찾아 emitted_at만 바꿔 다시 보낸다.
+요청 형식은 스키마로 검증한다. 찾기 → 요청 → 재발행 → 복구 한 바퀴는 test_recoverable.py."""
 
-import json
+import pytest
 
-from emitter.cli import main as emit_main
 from emitter.replay import main as replay_main
-from emitter.replay import replay
-from emitter.report import main as report_main
-from emitter.report import measure
-from sim.cli import main as sim_main
-from sim.reader import read_events
+from emitter.replay import read_requests, replay
 
 AT = "2029-06-01T09:00:00"
 
@@ -24,23 +20,34 @@ def test_replay_keeps_event_and_sets_emitted_at():
     assert unknown == [{"entity_key": "C", "seq": 1}]
 
 
-def test_find_request_replay_recovers_every_drop(tmp_path, capsys):
-    truth, emitted, requests = tmp_path / "truth", tmp_path / "emitted", tmp_path / "req.jsonl"
-    sim_main(["--seed", "0", "--until", "2029-06-01", "--out-dir", str(truth)])
-    emit_main(["--truth", str(truth), "--out-dir", str(emitted)])
-    report_main(["--truth", str(truth), "--emitted", str(emitted), "--requests", str(requests)])
-    before = measure(read_events(truth), read_events(emitted))
-    assert before["dropped"] > 0
+def test_read_requests_skips_blank_lines(tmp_path):
+    path = tmp_path / "req.jsonl"
+    path.write_text('{"entity_key": "A", "seq": 2}\n\n')
+    assert read_requests(path) == [{"entity_key": "A", "seq": 2}]
 
-    replay_main(
-        ["--truth", str(truth), "--requests", str(requests), "--at", AT, "--out-dir", str(emitted)]
-    )
-    part = emitted / "dt=2029-06-01" / "part-replay-20290601T090000.jsonl"
-    replayed = [json.loads(line) for line in part.read_text().splitlines()]
-    assert len(replayed) == before["dropped"]
-    assert {e["emitted_at"] for e in replayed} == {"2029-06-01T09:00:00+09:00"}
 
-    after = measure(read_events(truth), read_events(emitted))
-    assert after["dropped"] == 0 and after["missing"] == []
-    assert after["duplicated"] == before["duplicated"]
-    capsys.readouterr()
+@pytest.mark.parametrize(
+    "line",
+    [
+        '{"entity_key": "A"}',
+        '{"entity_key": "A", "seq": 0}',
+        '{"entity_key": "", "seq": 1}',
+        '{"entity_key": "A", "seq": "2"}',
+        '{"entity_key": "A", "seq": 2, "event_id": "x"}',
+        "not json",
+    ],
+)
+def test_bad_request_is_rejected_with_line_number(tmp_path, line):
+    path = tmp_path / "req.jsonl"
+    path.write_text('{"entity_key": "A", "seq": 1}\n' + line + "\n")
+    with pytest.raises(ValueError, match=r"req\.jsonl:2"):
+        read_requests(path)
+
+
+def test_cli_sends_nothing_on_bad_request(tmp_path, capsys):
+    requests, out = tmp_path / "req.jsonl", tmp_path / "emitted"
+    requests.write_text('{"entity_key": "A", "seq": 0}\n')
+    with pytest.raises(SystemExit):
+        replay_main(["--requests", str(requests), "--at", AT, "--out-dir", str(out)])
+    assert not out.exists()
+    assert "재발행 요청 형식" in capsys.readouterr().err

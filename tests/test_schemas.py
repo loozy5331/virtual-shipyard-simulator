@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sim.schema import validator
+from sim.schema import request_validator, validator
 
 SCHEMAS = Path(__file__).resolve().parent.parent / "schemas"
 VALID = sorted((SCHEMAS / "examples" / "valid").glob("*.json"))
@@ -100,3 +100,16 @@ INVALID = {
 @pytest.mark.parametrize("name", INVALID)
 def test_invalid_examples_fail(name):
     assert not VALIDATOR.is_valid(INVALID[name])
+
+
+def test_replay_request_schema():
+    v = request_validator()
+    assert v.is_valid({"entity_key": "H-2601-B006", "seq": 3})
+    for bad in [
+        {"entity_key": "H-2601"},
+        {"seq": 1},
+        {"entity_key": "H-2601", "seq": 0},
+        {"entity_key": "", "seq": 1},
+        {"entity_key": "H-2601", "seq": 1, "event_id": "x"},
+    ]:
+        assert not v.is_valid(bad), bad
