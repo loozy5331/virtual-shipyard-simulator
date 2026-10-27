@@ -1,5 +1,5 @@
 """5단계 완료 기준: 정답과 비교해 노이즈가 설정 비율대로 측정된다.
-방출 로그만으로 찾기(대사)는 test_recoverable.py(ADR-008)."""
+방출 로그만으로 찾기(대사)는 test_recoverable.py(ADR-009)."""
 
 import json
 

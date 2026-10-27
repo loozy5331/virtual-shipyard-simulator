@@ -1,7 +1,7 @@
 """재발행: python -m emitter.replay --requests out/requests.jsonl --at 2031-11-03T09:00:00
 
 재발행 요청(한 줄에 {"entity_key", "seq"}, schemas/replay_request.json)을 정답 로그에서 찾아
-다시 보낸다(ADR-006). 요청은 플랫폼이 만든다(ADR-008). 형식이 틀린 줄이 있으면 보내지 않는다.
+다시 보낸다(ADR-006). 요청은 플랫폼이 만든다(ADR-009). 형식이 틀린 줄이 있으면 보내지 않는다.
 event_id·occurred_at·payload는 그대로, emitted_at만 처리 시각(--at, +09:00)이다. 노이즈는 없다.
 출력은 방출 로그의 dt=<처리 날짜>/part-replay-<처리 시각>.jsonl이라 방출 로그와 함께 읽힌다.
 """

@@ -1,6 +1,6 @@
 # ADR-006 재발행과 대사
 
-- 상태: 확정, 결정 1·6은 [ADR-008](008-reconciliation-as-test.md)로 대체
+- 상태: 확정, 결정 1·6은 [ADR-009](009-reconciliation-as-test.md)로 대체
 - 날짜: 2026-10-26
 
 ## 맥락

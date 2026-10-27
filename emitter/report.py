@@ -1,7 +1,7 @@
 """노이즈 리포트: python -m emitter.report --truth out/truth --emitted out/emitted
 
 정답과 비교한 실제 비율(누락·중복·늦음·순서 어긋남, 지연 분포)을 낸다(ADR-005).
-방출 로그만으로 누락을 찾고 재발행을 요청하는 대사는 플랫폼의 일이다(ADR-008). 원천의 계약만으로
+방출 로그만으로 누락을 찾고 재발행을 요청하는 대사는 플랫폼의 일이다(ADR-009). 원천의 계약만으로
 누락을 모두 찾을 수 있다는 것은 tests/test_recoverable.py가 보인다.
 """
 

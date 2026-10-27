@@ -103,7 +103,7 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 ```
 
 - 설정 비율대로 측정된다(누락·중복·늦음 모두 설정의 ±10% 안)
-- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/test_recoverable.py`가 보인다(ADR-008)
+- 방출 로그만으로 찾을 수 있는지(중복은 `event_id`, 누락은 `seq` 빈 번호와 마감 집계)는 `tests/test_recoverable.py`가 보인다(ADR-009)
 
 ## 개발
 
@@ -122,7 +122,7 @@ uv run pytest            # 테스트
 - [ADR-005 방출기와 노이즈](docs/adr/005-emitter-noise.md)
 - [ADR-006 재발행과 대사](docs/adr/006-replay-and-reconciliation.md)
 - [ADR-007 출력 방식과 경계](docs/adr/007-output-and-boundary.md)
-- [ADR-008 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/008-reconciliation-as-test.md)
+- [ADR-009 대사는 플랫폼에, 원천은 계약과 증명만](docs/adr/009-reconciliation-as-test.md)
 
 ## 만든 것
 
@@ -142,7 +142,7 @@ uv run pytest            # 테스트
 - 5단계: 방출기(ADR-005) — 정답 로그에 지연 도착·중복·누락을 이벤트별 난수로 섞어 도착 순서로 쓴다(순서 어긋남은 지연의 결과). 노이즈 리포트는 설정 대비 실제 비율과 `event_id`·`seq`로 찾은 수를 낸다. 게이트 확인은 위 "실행"
 - 게이트 뒤: 재발행과 대사(ADR-006) — 원천은 하루 한 번 마감 집계(최근 `lookback_days` 안의 개체만)를 내고, 플랫폼 대역인 리포트가 대사로 끝 번호 누락까지 찾아 재발행 요청 파일을 쓰고, `emitter.replay`가 정답에서 다시 보낸다
 - 게이트 뒤: 출력 방식과 경계(ADR-007) — Kafka 출력(`--sink kafka`, 개발용 Redpanda), 브로커 장애 때 기다리기, 체크포인트에서 이어 보내기, 채점용 사본
-- 게이트 뒤: 대사를 플랫폼에(ADR-008) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
+- 게이트 뒤: 대사를 플랫폼에(ADR-009) — 리포트는 노이즈 실측만, 재발행 요청 스키마(`schemas/replay_request.json`)와 검증, 계약만으로 누락을 모두 찾는다는 증명은 `tests/test_recoverable.py`
 
 ## 브랜치 전략
 
