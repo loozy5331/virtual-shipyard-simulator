@@ -1,7 +1,7 @@
 # 개발용(ADR-007·012). 운영 브로커와 원천 컨테이너 배치는 플랫폼 소유다.
 # 호스트에서 보내기: docker compose up -d redpanda → uv run python -m emitter --sink kafka
 # 원천을 모두 컨테이너로: docker compose --profile source up --build
-#   sim(정답 로그, 끝나면 멈춤) → emitter(Kafka) · replay(out/requests/ 살펴보기)
+#   sim(정답 로그, 끝나면 멈춤) → emitter · replay(out/requests/ 살펴보기), 둘 다 Kafka로
 # 토픽은 자동으로 만든다. 컨테이너끼리는 redpanda:29092, 호스트는 localhost:9092
 x-source: &source
   build: .
@@ -50,8 +50,16 @@ services:
 
   replay:
     <<: *source
-    command: ["python", "-m", "emitter.replay_service", "--requests-dir=out/requests"]
+    command:
+      - python
+      - -m
+      - emitter.replay_service
+      - --requests-dir=out/requests
+      - --sink=kafka
+      - --bootstrap=redpanda:29092
     restart: unless-stopped
     depends_on:
       sim:
         condition: service_completed_successfully
+      redpanda:
+        condition: service_healthy

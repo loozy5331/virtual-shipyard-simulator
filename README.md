@@ -75,12 +75,14 @@ uv run python -m emitter.report      # 채점은 사본(--copy-dir)으로
 ### 컨테이너와 재발행 서비스(ADR-012)
 
 ```bash
-docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → emitter(Kafka) · replay
+docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → emitter · replay, 둘 다 Kafka로
 ```
 
 - 이미지 하나(`Dockerfile`)가 `sim`, `emitter --sink kafka`, `emitter.replay_service`를 담고, 명령만 바꾼다. 볼륨은 `/app/out`
 - 재발행 서비스는 요청 디렉터리(`out/requests/`)의 `*.jsonl`을 5초마다 살펴 이름 순서로 재발행하고 `done/`으로 옮긴다. 형식이 틀린 파일은 보내지 않고 `failed/`로 옮기며 까닭을 `<이름>.error`에 쓴다. 다 쓴 파일만 처리하도록 다른 이름(`.tmp`)으로 쓰고 바꿔 넣는다
-- 처리 시각(`emitted_at`)은 방출 로그에서 가장 늦은 도착 시각 + 1초다. 재발행은 아직 파일로 나간다(Kafka는 11단계)
+- 처리 시각(`emitted_at`)은 방출 로그에서 가장 늦은 도착 시각 + 1초다
+- `--sink kafka`(compose의 기본)면 처음 방출과 같은 토픽·키로 보내고, 브로커 확인 뒤 방출 로그(사본)에 쓰고 요청을 옮긴다. `emitter.replay`에도 같은 옵션이 있다
+- 5년(시드 0) 누락 266개를 요청 하나로 넣으면 토픽에 정답 55,803개가 모두 있다
 - 호스트에서 한 번 돌리기: `uv run python -m emitter.replay_service --once`
 
 ### 설비 고장(ADR-010)
@@ -183,6 +185,7 @@ uv run pytest            # 테스트
 - 6단계: 설비 고장(ADR-010) — 작업장마다 고장(지수분포 간격)과 수리(로그정규)를 `equipment.status_changed`로 내고, 고장 중에는 그 작업장의 작업이 멈춘다. 5년 가용률 97~98%
 - 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
 - 10단계: 컨테이너와 재발행 요청 디렉터리(ADR-012) — 이미지 하나로 sim·emitter·재발행 서비스, 재발행 서비스는 요청 디렉터리를 살펴 처리하고 `done/`·`failed/`로 옮긴다. 개발용 compose `source` 프로필
+- 11단계: 재발행을 Kafka로(ADR-012) — `emitter.replay`와 재발행 서비스의 `--sink kafka`, 처음 방출과 같은 토픽·키, 브로커 확인 뒤 사본
 
 ## 브랜치 전략
 

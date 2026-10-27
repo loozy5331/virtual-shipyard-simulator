@@ -1,9 +1,10 @@
-"""재발행 서비스: python -m emitter.replay_service --requests-dir requests [--once]
+"""재발행 서비스: python -m emitter.replay_service --requests-dir requests [--sink kafka] [--once]
 
 플랫폼이 요청 디렉터리에 둔 요청 파일(*.jsonl, schemas/replay_request.json)을 살펴 이름 순서로
 하나씩 재발행한다(ADR-012). 처리한 파일은 done/으로 옮긴다. 형식이 틀려 아무것도 보내지 않은
 파일은 failed/로 옮기고 까닭을 <이름>.error에 쓴다. 다 쓴 파일만 처리하도록 플랫폼은 다른
-이름(예: .tmp)으로 쓰고 바꿔 넣는다.
+이름(예: .tmp)으로 쓰고 바꿔 넣는다. --sink kafka면 처음 방출과 같은 토픽으로 보내고 브로커
+확인을 받은 뒤 방출 로그(사본)에 쓰고 옮긴다.
 
 처리 시각(emitted_at)은 방출 로그에서 가장 늦은 도착 시각 + 1초다. 방출기의 가상 시각을 따르고,
 요청마다 달라 재발행 파일이 겹치지 않는다. 방출 로그가 비어 있으면 처리하지 않고 기다린다.
@@ -18,7 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from emitter.noise import KST
-from emitter.replay import read_requests, replay, write
+from emitter.replay import add_sink_args, kafka_sink, publish, read_requests, replay
 from sim.reader import read_events
 
 DONE, FAILED = "done", "failed"
@@ -40,7 +41,7 @@ def clock(emitted: Path) -> datetime | None:
     return None
 
 
-def process(path: Path, truth: Path, emitted: Path) -> str | None:
+def process(path: Path, truth: Path, emitted: Path, kafka=None) -> str | None:
     """요청 파일 하나를 처리하고 옮긴다. 옮긴 곳(done, failed), 기다리면 None."""
     try:
         requests = read_requests(path)
@@ -52,7 +53,7 @@ def process(path: Path, truth: Path, emitted: Path) -> str | None:
         return None
     at = (latest + timedelta(seconds=1)).astimezone(KST)
     events, unknown = replay(read_events(truth), requests, at.isoformat(timespec="seconds"))
-    out = write(events, emitted, at)
+    out = publish(events, emitted, at, kafka)
     _move(path, DONE)
     note = f", 정답에 없는 요청 {len(unknown)}개(보내지 않음)" if unknown else ""
     print(f"{path.name}: 요청 {len(requests)}개 → 재발행 {len(events)}개 → {out}{note}")
@@ -66,11 +67,11 @@ def _move(path: Path, to: str) -> Path:
     return dest
 
 
-def scan(requests_dir: Path, truth: Path, emitted: Path, stop=lambda: False) -> int:
+def scan(requests_dir: Path, truth: Path, emitted: Path, kafka=None, stop=lambda: False) -> int:
     """기다리는 요청 파일을 이름 순서로 처리한다. 처리한 수."""
     n = 0
     for path in sorted(requests_dir.glob("*.jsonl")):
-        if stop() or process(path, truth, emitted) is None:
+        if stop() or process(path, truth, emitted, kafka) is None:
             break
         n += 1
     return n
@@ -82,17 +83,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--requests-dir", type=Path, default=Path("out/requests"))
     parser.add_argument("--truth", type=Path, default=Path("out/truth"))
-    parser.add_argument("--out-dir", type=Path, default=Path("out/emitted"))
+    parser.add_argument("--out-dir", type=Path, default=Path("out/emitted"), help="kafka면 사본")
+    add_sink_args(parser)
     parser.add_argument("--interval", type=float, default=5.0, help="살펴보는 간격(초)")
     parser.add_argument("--once", action="store_true", help="한 번 살펴보고 끝낸다")
     args = parser.parse_args(argv)
 
     args.requests_dir.mkdir(parents=True, exist_ok=True)
+    kafka = kafka_sink(args.sink, args.bootstrap)
     stopping = []  # 컨테이너가 멈출 때(SIGTERM) 처리 중인 파일은 끝내고 나간다
     signal.signal(signal.SIGTERM, lambda *_: stopping.append(True))
-    print(f"재발행 서비스: {args.requests_dir} 살펴보기({args.interval:g}초마다)", flush=True)
+    to = f"kafka {args.bootstrap}" if kafka else "파일"
+    print(f"재발행 서비스: {args.requests_dir} 살펴보기({args.interval:g}초마다) → {to}")
     while not stopping:
-        scan(args.requests_dir, args.truth, args.out_dir, stop=lambda: bool(stopping))
+        scan(args.requests_dir, args.truth, args.out_dir, kafka, stop=lambda: bool(stopping))
         if args.once:
             break
         time.sleep(args.interval)
