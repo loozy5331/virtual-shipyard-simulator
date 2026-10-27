@@ -6,8 +6,8 @@ import json
 import pytest
 
 from emitter.kafka import KafkaSink
-from emitter.replay_service import clock, main, scan
-from tests.test_kafka import FakeProducer
+from emitter.replay.service import clock, main, scan
+from tests.emitter.test_kafka import FakeProducer
 
 
 def _e(key, seq, emitted_at="2029-06-01T08:00:00+09:00"):

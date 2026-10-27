@@ -53,7 +53,7 @@ services:
     command:
       - python
       - -m
-      - emitter.replay_service
+      - emitter.replay.service
       - --requests-dir=out/requests
       - --sink=kafka
       - --bootstrap=redpanda:29092

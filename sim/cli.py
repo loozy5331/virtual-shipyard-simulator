@@ -11,7 +11,7 @@ from pathlib import Path
 from sim import params
 from sim.clock import Clock
 from sim.engine import Shipyard
-from sim.writer import JsonlWriter, PartitionedWriter
+from sim.io.writer import JsonlWriter, PartitionedWriter
 
 DEFAULT_YEARS = 5
 

@@ -19,8 +19,8 @@ from emitter.report import measure
 from sim import params
 from sim.cli import main as sim_main
 from sim.engine import simulate
-from sim.reader import read_events
-from sim.schema import request_validator
+from sim.io.reader import read_events
+from sim.io.schema import request_validator
 from tests.helpers import fixed_orders
 
 MANIFEST = "system.manifest_published"

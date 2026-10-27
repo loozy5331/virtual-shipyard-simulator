@@ -12,7 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from emitter.noise import Emitter
-from sim.reader import read_events
+from sim.io.reader import read_events
 
 VERSION = 1
 

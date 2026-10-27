@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from emitter.noise import KST
-from sim.reader import read_events
-from sim.schema import request_validator
+from sim.io.reader import read_events
+from sim.io.schema import request_validator
 
 Event = dict[str, Any]
 
@@ -108,6 +108,3 @@ def main(argv: list[str] | None = None) -> int:
         print(f"정답에 없는 요청 {len(unknown)}개(보내지 않음)")
     return 0
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())

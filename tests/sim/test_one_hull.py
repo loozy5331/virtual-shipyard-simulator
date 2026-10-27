@@ -7,8 +7,8 @@ from sim import params
 from sim.cli import main
 from sim.clock import days
 from sim.engine import simulate
+from sim.io.schema import validator
 from sim.periods import TABLE as PERIOD_MONTHS
-from sim.schema import validator
 from tests.helpers import single_hull_params
 
 MILESTONES = ["steel_cutting", "keel_laying", "launching", "delivery"]
