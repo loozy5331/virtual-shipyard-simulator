@@ -43,15 +43,17 @@ def run(
     emitter: Emitter,
     flush: Callable[[], None],
     checkpoint: Path | None = None,
+    follow: bool = False,
 ) -> int:
     """정답 로그를 방출기에 흘린다. checkpoint가 있으면 거기서 이어 읽고, 날짜가 바뀔 때마다
-    flush 후 저장한다. 반환값은 이번에 이어 읽기 시작한 위치(정답 이벤트 수)."""
+    flush 후 저장한다. follow면 정답 로그를 끝없이 따라 읽는다(ADR-013).
+    반환값은 이번에 이어 읽기 시작한 위치(정답 이벤트 수)."""
     start = 0
     if checkpoint is not None and (saved := load(checkpoint)) is not None:
         start, state = saved
         emitter.restore(state)
     read, day = start, None
-    for event in read_events(truth, skip=start):
+    for event in read_events(truth, skip=start, follow=follow):
         today = event["occurred_at"][:10]
         if checkpoint is not None and day is not None and today != day:
             flush()

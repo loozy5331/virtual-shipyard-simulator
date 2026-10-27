@@ -110,6 +110,7 @@ class Shipyard:
     def __init__(self, params: dict[str, Any], seed: int, sink: Sink):
         yard = params["yard"]
         self.env = simpy.Environment()
+        self.ticking = False
         self.clock = Clock(yard["epoch"])
         self.run_id = f"{yard['params_version']}-s{seed}"
         self.seed = seed
@@ -202,10 +203,24 @@ class Shipyard:
             durations={k: days(v) for k, v in ship["durations_days"].items()},
         )
 
-    def run(self, until: int | None = None) -> None:
+    def run(
+        self,
+        until: int | None = None,
+        every: int | None = None,
+        tick: Callable[[int], None] | None = None,
+    ) -> None:
         """until(분) 전까지. None이면 받은 배를 모두 인도할 때까지인데, 포아송 수주가 켜져
-        있으면 끝이 없다."""
+        있으면 끝이 없다. tick을 주면 every분마다 지금 분으로 부른다(재생 속도, ADR-013).
+        tick은 이벤트를 내지 않으므로 다른 이벤트의 순서는 그대로다."""
+        if tick is not None and not self.ticking:  # 이어 돌려도 tick은 하나
+            self.ticking = True
+            self.env.process(self._ticks(every, tick))
         self.env.run(until=self.idle if until is None else until)
+
+    def _ticks(self, every: int, tick: Callable[[int], None]):
+        while True:
+            yield self.env.timeout(every)
+            tick(self.env.now)
 
     def _check_idle(self) -> None:
         if not self.ordering and self.active == 0 and not self.idle.triggered:

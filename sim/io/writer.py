@@ -1,15 +1,20 @@
 """이벤트를 JSON Lines로 쓴다. 한 줄 = 이벤트 하나, 키 순서는 봉투 순서 그대로.
-파일 하나(JsonlWriter) 또는 날짜별 파일(PartitionedWriter)."""
+파일 하나(JsonlWriter) 또는 날짜별 파일(PartitionedWriter). bytes는 이번에 쓴 바이트 수."""
 
 import json
 from pathlib import Path
 from typing import Any
 
 
+def _line(event: dict[str, Any]) -> str:
+    return json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
 class JsonlWriter:
     def __init__(self, path: Path):
         self.path = Path(path)
         self.count = 0
+        self.bytes = 0
         self._file = None
 
     def __enter__(self) -> "JsonlWriter":
@@ -21,8 +26,13 @@ class JsonlWriter:
         self._file.close()
 
     def __call__(self, event: dict[str, Any]) -> None:
-        self._file.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+        line = _line(event)
+        self._file.write(line)
+        self.bytes += len(line.encode())
         self.count += 1
+
+    def flush(self) -> None:
+        self._file.flush()
 
 
 class PartitionedWriter:
@@ -36,6 +46,7 @@ class PartitionedWriter:
         self.root = Path(root)
         self.append = append
         self.count = 0
+        self.bytes = 0
         self.date: str | None = None
         self._file = None
 
@@ -62,7 +73,9 @@ class PartitionedWriter:
             path.parent.mkdir(parents=True, exist_ok=True)
             self._file = path.open("a" if self.append else "w", encoding="utf-8", newline="\n")
             self.date = date
-        self._file.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+        line = _line(event)
+        self._file.write(line)
+        self.bytes += len(line.encode())
         self.count += 1
 
     def flush(self) -> None:

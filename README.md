@@ -85,6 +85,18 @@ docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → e
 - 5년(시드 0) 누락 266개를 요청 하나로 넣으면 토픽에 정답 55,803개가 모두 있다
 - 호스트에서 한 번 돌리기: `uv run python -m emitter.replay.service --once`
 
+### 실시간 재생(ADR-013)
+
+```bash
+uv run python -m sim --forever --speed 1440                  # 가상 하루 = 실제 1분, 하루 앞서 쓴다
+uv run python -m emitter --sink kafka --follow --speed 1440  # 정답 로그를 따라 읽으며 도착 시각에 맞춰 보낸다
+docker compose -f docker-compose.yml -f docker-compose.live.yml --profile source up --build   # 컨테이너로
+```
+
+- `--speed N`: 가상 N초 = 실제 1초. 방출기는 `emitted_at` 간격대로 보내고, 메시지 내용과 순서는 속도가 없을 때와 같다
+- `--follow`: 끝없는 정답 로그를 따라 읽는다. 쓰는 중인 줄은 건너뛴다
+- 정답 로그가 `--max-gb`(기본 10GB)에 닿으면 `sim`이 그날까지 쓰고 멈춘다. 1440이면 실제 1년 넘게 걸린다
+
 ### 설비 고장(ADR-010)
 
 작업장 하나가 설비 하나다. 가공 공장·조립장·도크·선석이 `params/v0.yaml`의 `failures`(평균 고장 간격, 수리 시간, 원인, 모두 가정)대로 고장 나고, 고장 중에는 그 작업장의 작업이 멈췄다가 고치면 이어 한다. 시운전 팀은 고장 나지 않는다.
@@ -144,7 +156,7 @@ docker compose --profile source up --build   # sim(5년, 끝나면 멈춤) → e
 ## 구조
 
 ```
-sim/            시뮬레이터: 엔진(engine·dock·planner·orders), 시계·번호, params 읽기, 명령(cli)
+sim/            시뮬레이터: 엔진(engine·dock·planner·orders), 시계·번호, 재생 속도(pace), params 읽기, 명령(cli)
   io/           이벤트 읽기·쓰기, 스키마 검증
 emitter/        방출기: 노이즈, 마감 집계, 체크포인트, Kafka 출력, 노이즈 리포트
   replay/       재발행(python -m emitter.replay)과 재발행 서비스(python -m emitter.replay.service)
@@ -175,6 +187,7 @@ uv run pytest            # 테스트
 - [ADR-010 설비 고장](docs/adr/010-equipment-failure.md)
 - [ADR-011 자재 발주와 입고 지연](docs/adr/011-material-supply.md)
 - [ADR-012 컨테이너와 재발행 요청 디렉터리](docs/adr/012-container-and-request-directory.md)
+- [ADR-013 재생 속도와 정답 로그 상한](docs/adr/013-playback-speed.md)
 
 ## 만든 것
 
@@ -199,6 +212,7 @@ uv run pytest            # 테스트
 - 7단계: 자재 발주와 입고 지연(ADR-011) — 호선마다 강재(4몫)·주기관·배관·전선을 필요일에 맞춰 발주(`material.ordered`)하고 자재별 지연 분포대로 입고(`material.received`)한다. 자재가 들어오기 전에는 그 작업이 기다린다
 - 10단계: 컨테이너와 재발행 요청 디렉터리(ADR-012) — 이미지 하나로 sim·emitter·재발행 서비스, 재발행 서비스는 요청 디렉터리를 살펴 처리하고 `done/`·`failed/`로 옮긴다. 개발용 compose `source` 프로필
 - 11단계: 재발행을 Kafka로(ADR-012) — `emitter.replay`와 재발행 서비스의 `--sink kafka`, 처음 방출과 같은 토픽·키, 브로커 확인 뒤 사본
+- 12단계: 재생 속도(ADR-013) — `sim`·`emitter`의 `--speed`, 방출기의 `--follow`(끝없는 정답 로그 따라 읽기), 정답 로그 상한 10GB, compose `docker-compose.live.yml`
 
 ## 브랜치 전략
 
