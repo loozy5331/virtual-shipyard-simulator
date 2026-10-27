@@ -17,3 +17,12 @@ jobs:
         run: uv run ruff check .
       - name: Test
         run: uv run pytest
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t virtual-shipyard-simulator:ci .
+      - name: Smoke
+        run: docker run --rm virtual-shipyard-simulator:ci python -m sim --until 2026-12-01
