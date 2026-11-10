@@ -1,6 +1,6 @@
 # 가상 조선소 시뮬레이터 단계별 개발 계획
 
-2026-10-27 기준 · 원본(편집용): https://claude.ai/artifact/LeD43VMpbkKVCpZ8Gcp4Ka · 설계: 도메인 모델 문서 · 이 원천을 받는 쪽: [데이터 플랫폼 계획](https://github.com/loozy5331/virtual-shipyard-data-platform/blob/main/docs/가상%20조선소%20데이터%20플랫폼%20단계별%20개발%20계획.md)
+2026-10-27 기준 · 원본(편집용): https://claude.ai/artifact/LeD43VMpbkKVCpZ8Gcp4Ka · 설계: 도메인 모델 문서 · 이 원천을 받는 쪽: [데이터 플랫폼 계획](https://github.com/loozy5331/virtual-shipyard-data-platform/blob/develop/docs/development-plan.md)
 
 MVP는 10/26–11/7에 6단계(0~5)로 나눠 만들고, 11/8 게이트에서 "노이즈가 섞인 이벤트가 쌓인다"를 확인한다. 단계마다 이틀(약 4시간, 거제 하루 2시간 기준).
 
